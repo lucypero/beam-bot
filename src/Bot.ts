@@ -1,0 +1,820 @@
+import {
+  Client,
+  Interaction,
+  Message,
+  Intents,
+  GuildMemberRoleManager,
+  MessageEmbed,
+  MessageActionRow,
+  MessageButton,
+  ButtonInteraction,
+  GuildMember,
+  GuildAuditLogsEntry,
+  TextChannel,
+} from "discord.js";
+import { Knex, knex } from "knex";
+
+interface WhitelistedChannel {
+  channel_id: string;
+}
+
+interface WhitelistedUrl {
+  url: string;
+}
+
+interface WhitelistedUser {
+  user_id: string;
+}
+
+interface UserRole {
+  id: number;
+  user_id: string;
+  role_id: string;
+}
+
+enum DBError {
+  DuplicateError,
+  OtherError,
+}
+
+const embed_color = "#0099ff";
+
+// TODO: get all these role values from a json file or a sql table so they are easier to modify
+
+// Stream, Video, Ark pve, Ark Deathmatch
+export const menu_roles = [
+  "932209399638917130",
+  "945788552065736714",
+  "945788635666587668",
+  "945788693673820201",
+];
+
+// Role of someone who read the rules and can access the server
+const user_role = "953149523792920606";
+
+// Role of someone who can post any url
+const whitelisted_roles = ["953476405243547671"];
+
+// Role of someone who can whitelist anything
+const whitelist_mod_roles = ["953476916818608188"];
+
+//server ID's and its relevant channels
+// Channel id of the audit log
+
+interface RelevantChannels {
+  audit_log_channel_id: string;
+}
+
+const channel_ids = new Map<string, RelevantChannels>([
+  [
+    "953144972390039592",
+    {
+      audit_log_channel_id: "953792135713394708",
+    },
+  ],
+]);
+
+async function main() {
+  console.log("Bot is starting...");
+
+  // open the database
+  const config: Knex.Config = {
+    client: "sqlite3",
+    connection: {
+      filename: "./data.db",
+    },
+    useNullAsDefault: true,
+  };
+
+  const knex_instance = knex(config);
+
+  const client = new Client({
+    intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES],
+  });
+
+  // ready listener
+  client.on("ready", async () => {
+    if (!client.user || !client.application) {
+      return;
+    }
+
+    console.log(`${client.user.username} is online`);
+
+    // Run the audit log check periodically
+    run_audit_log(client, knex_instance);
+  });
+
+  // interactionCreate listener
+  client.on("interactionCreate", async (interaction: Interaction) => {
+    if (!interaction.isButton()) return;
+
+    //what kind of interaction is this?
+    // ButtonInteraction
+
+    // Stream, Video, Ark pve, Ark Deathmatch
+
+    // export const menu_roles = [
+    //   "932209399638917130",
+    //   "945788552065736714",
+    //   "945788635666587668",
+    //   "945788693673820201",
+    // ];
+
+    //Button category
+    let but_cat = interaction.customId.split("-")[0];
+
+    switch (but_cat) {
+      case "roles": {
+        clicked_but_roles(interaction);
+        break;
+      }
+      case "rules": {
+        clicked_but_rules(interaction);
+        break;
+      }
+      default: {
+        break;
+      }
+    }
+  });
+
+  // messagecreate listener
+  client.on("messageCreate", async (message: Message) => {
+    //ignore if this is not in a guild
+    if (!message.guild) {
+      return;
+    }
+    //let command_and_args = message.content.split(/\b(\s)/);
+
+    //check if it is url
+    let matches = message.content.match(/\bhttps?:\/\/\S+/gi);
+    console.log("matches:", matches);
+    matches?.forEach((match) => {
+      //
+      console.log(match);
+    });
+
+    if (
+      matches &&
+      !(await should_whitelist(client, message, knex_instance, matches))
+    ) {
+      console.log("did not pass the whitelist. deleting message.");
+      // we delete message
+      message
+        .delete()
+        .then((msg) =>
+          console.log(`Deleted message from ${msg.author.username}`)
+        )
+        .catch(console.error);
+    }
+    // check if it is command
+
+    let command_and_args = message.content.match(/\S+/g);
+
+    if (!command_and_args) return;
+
+    if (command_and_args.length < 1) {
+      return;
+    }
+
+    // commands
+    switch (command_and_args[0]) {
+      case ".mute": {
+        command_mute(message, command_and_args.slice(1));
+        break;
+      }
+      case ".bot_post_role_message": {
+        command_post_role_message(message);
+        break;
+      }
+      case ".bot_post_rules": {
+        command_post_rules(message);
+        break;
+      }
+      case ".whitelist_user": {
+        if (command_and_args.length < 2) return;
+        if (can_member_whitelist(message.member!)) {
+          command_whitelist_user(message, knex_instance);
+        } else {
+          // Post that u don't have the authority to use this command.
+          message.reply("You can't use that command.");
+        }
+        break;
+      }
+      case ".whitelist_channel": {
+        if (command_and_args.length < 2) return;
+        if (can_member_whitelist(message.member!)) {
+          command_whitelist_channel(message, knex_instance);
+        } else {
+          // Post that u don't have the authority to use this command.
+          message.reply("You can't use that command.");
+        }
+        break;
+      }
+      case ".whitelist_url": {
+        if (command_and_args.length < 2) return;
+        if (can_member_whitelist(message.member!)) {
+          let urls = command_and_args.slice(1);
+          command_whitelist_url(urls, message, knex_instance);
+        } else {
+          // Post that u don't have the authority to use this command.
+          message.reply("You can't use that command.");
+        }
+        break;
+      }
+    }
+  });
+
+  const token = process.env["BEAM_BOT_TOKEN"];
+
+  if (!token) {
+    console.error(
+      "env variable BEAM_BOT_TOKEN is undefined. Please define it."
+    );
+    process.exit(1);
+  } else {
+    client.login(token);
+  }
+}
+
+function add_to_whitelist<T>(knex_inst: Knex, table: string, wl_value: T) {
+  return (
+    knex_inst<T>(table)
+      // @ts-ignore
+      .insert(wl_value)
+  );
+}
+
+// --------------- COMMAND functions ----------------
+
+//post the rules
+function command_post_rules(message: Message) {
+  const rules_de = [
+    "Seid nett und freundlich zu einander. Beleidigt, belästigt oder diskriminiert nicht mit faschistischen, rassistischen, homo/transphoben, sexistischen und/oder Menschen - verachtenden Äußerungen oder Reactions.",
+    "Bitte kein 18+ Content. D.h. nicht in Text, Bild, Video, Profil, Username, etc. Gewalt- und Drogenkonsum verherrlichende Inhalte sind ebenfalls verboten.",
+    "Störung der Kommunikation, Belästigung und Beleidigung sowie Provokation und jegliches Bedrohen von Nutzern im Voice/Schreibchat ist untersagt. Dazu zählt auch unnötiges pingen und/oder spammen.",
+    "Die Stimme, Webcam & Bildschirmübertragung anderer User, darf ohne deren Einverständnis unter keinen Umständen aufgenommen/weiterverarbeitet werden.",
+    "Kein nervendes Nachfragen nach gebannten Personen. (wenn eine Person gebannt ist, kann diese Person @BeKa per PN anschreiben (bei DC Bann). Und per Ticket bei mute um die Angelegenheit klären)",
+    "Das Benutzen von Zweitaccounts, sowie das Umgehen von Mutes, Banns usw. führt zu sofortigem permanentem Ausschluss.",
+    "Probleme auf Beam´s Spiele Servern, sowie auf dem DC werden ausschließlich über das Ticket-System geklärt.",
+    "Keine Fremdserverwerbung. Auch nicht in Verbindung mit Tribe/Member suche. Außerdem sind nur Links von Beams Infoblättern oder von Ingame - Screenshots erlaubt. ",
+    "Beachtet bitte auch die Discord Community Richtlinien. https://discord.com/guidelines",
+  ];
+
+  const rules_en = [
+    "Be nice and friendly to each other,  no insulting, discrimination including, sexism, fascism, racism, homophobic, transphobic and sexist language. Please use common sense.",
+    "No 18+ content in text messages, including videos, pictures, profile pictures, profiles and status and usernames, no glorifying drug use or violence.",
+    "No disrupting or disturbing people in voice or text chat or trying to provoke or threatening people, please follow the other rules at all times.",
+    "No unneeded pinging or spamming other members or messages.",
+    "Recording of other users voice, webcam, streams or screensharing is prohibited without permission and awareness of all involved. ",
+    "No repetitive questions about the bans of other members or yourself, appeals should be sent to @BeKa via private message, only if it is a ban from Beam's discord. For any other punishment a ticket must be opened. ",
+    "Ban evasion is prohibited, trying to get around a ban with alt accounts will result in permanent ban without warning.",
+    "All problems relating to Beam's game servers and discord will exclusively answered with tickets, no questions will be answered via private messages ",
+    "No unsolicited advertisement's, this includes tribe or member search by you or on behalf of others, Links are not allowed excluding beam project information or in-game screenshots. (Special allowance may be available for twitch subs or discord boosters) ",
+    "Please also follow the discord community guidelines: https://discord.com/guidelines",
+  ];
+
+  const the_embed_de = new MessageEmbed()
+    .setTitle("Regeln")
+    .setColor(embed_color)
+    .setFooter({ text: "11.03.2022" });
+
+  let rules_str = "";
+
+  rules_de.forEach((rule) => {
+    rules_str = rules_str.concat("- ", rule, "\n\n");
+  });
+
+  the_embed_de.setDescription(rules_str);
+
+  const the_embed_en = new MessageEmbed()
+    .setTitle("Rules")
+    .setColor(embed_color)
+    .setFooter({ text: "11.03.2022" });
+
+  rules_str = "";
+
+  rules_en.forEach((rule) => {
+    rules_str = rules_str.concat("- ", rule, "\n\n");
+  });
+
+  the_embed_en.setDescription(rules_str);
+
+  const row = new MessageActionRow().addComponents(
+    new MessageButton()
+      .setCustomId("rules-accept")
+      .setLabel("Akzeptieren / Accept")
+      .setStyle("PRIMARY")
+  );
+
+  return message.channel
+    .send({
+      embeds: [the_embed_de],
+      files: [
+        {
+          attachment: "assets/Banner_Rules.png",
+          name: "banner_rules.png",
+          description: "Rules Banner",
+        },
+      ],
+    })
+    .then((_) => {
+      return message.channel.send({
+        embeds: [the_embed_en],
+        files: [
+          {
+            attachment: "assets/Banner_Rules_En.png",
+            name: "banner_rules.png",
+            description: "Rules Banner",
+          },
+        ],
+        components: [row],
+      });
+    })
+    .then((_) => console.log("Sent rules"))
+    .catch(console.error);
+}
+
+//post the role message
+function command_post_role_message(message: Message) {
+  const the_embed = new MessageEmbed()
+    .setColor(embed_color)
+    //.setTitle("Rules")
+    .addFields({
+      name: "Durch Klicken auf den entsprechenden Button könnt ihr euch die Rolle selbst geben und nehmen.",
+      value: `Die Stream und Videorolle bekommen alle standardmäßig. Wenn ihr bei Streams oder Videos nicht gepingt werden wollt, könnt ihr sie durch klicken auf den jeweiligen Button wieder entfernen.
+
+<@&932209399638917130> = Werde bei jedem Stream von Beam gepingt.
+<@&945788552065736714> = Werde bei jedem Video von Beam gepingt.
+<@&945788635666587668> = Infos & Events rund um den PvE Community Server.
+<@&945788693673820201> = Infos & Events rund um den Deathmatch Server.`,
+    });
+
+  const row = new MessageActionRow().addComponents(
+    new MessageButton()
+      .setCustomId("roles-stream")
+      .setLabel("Stream")
+      .setStyle("PRIMARY"),
+    new MessageButton()
+      .setCustomId("roles-video")
+      .setLabel("Video")
+      .setStyle("PRIMARY"),
+    new MessageButton()
+      .setCustomId("roles-ark-pve")
+      .setLabel("Ark PvE")
+      .setStyle("PRIMARY"),
+    new MessageButton()
+      .setCustomId("roles-ark-dm")
+      .setLabel("Ark Deathmatch")
+      .setStyle("PRIMARY")
+  );
+
+  message.channel
+    .send({
+      embeds: [the_embed],
+      files: [
+        {
+          attachment: "assets/Beam Rollenmanager.png",
+          name: "banner_role_manager.png",
+          description: "Role Manager Banner",
+        },
+      ],
+      components: [row],
+    })
+    .then((_) => console.log("sent role message"))
+    .catch(console.error);
+}
+
+//TODO: You just rewrote this whole function. test it and do the TODO's inside!!!
+//TODO: do error checking with try/catch on await stuff.
+async function post_audit_log(channel: TextChannel, knex_instance: Knex) {
+  const fetch_limit = 3;
+
+  const update_last_entry = function (last_entry: string) {
+    knex_instance
+      .raw(
+        "insert or replace into last_audits values(:guild_id,:last_entry_id)",
+        {
+          guild_id: channel.guild!.id,
+          last_entry_id: last_entry,
+        }
+      )
+      .then(() => console.log("last audit value inserted."))
+      .catch(console.error);
+  };
+
+  const fetch_forever = async function (
+    last_entry_id: string
+  ): Promise<GuildAuditLogsEntry[]> {
+    let before_id: string | undefined = undefined;
+    let total_entries: GuildAuditLogsEntry[] = [];
+
+    // first entry index where u should start posting
+    //  >= entries.length, post nothing.
+    let index_where_should_post = 0;
+
+    while (true) {
+      let log_entries;
+      log_entries = await channel.guild!.fetchAuditLogs({
+        limit: fetch_limit,
+        before: before_id,
+      });
+
+      let the_entries = log_entries.entries;
+
+      //this sorts it from oldest -> newest (oldest will be the first item)
+      the_entries = the_entries.sort(
+        (a, b) => a.createdTimestamp - b.createdTimestamp
+      );
+      let the_entries_arr = Array.from(the_entries.values());
+
+      total_entries = the_entries_arr.concat(total_entries);
+
+      let should_break = false;
+
+      for (let i = 0; i < total_entries.length; ++i) {
+        if (total_entries[i].id == last_entry_id) {
+          index_where_should_post = i + 1;
+          should_break = true;
+          break;
+        }
+      }
+
+      if (should_break) {
+        break;
+      }
+
+      if (the_entries.size < fetch_limit) {
+        break;
+      }
+
+      console.log("last entry not found in this batch. fetching again.");
+
+      before_id = the_entries.firstKey()! as string;
+    }
+
+    //Cutting the posts that were already posted
+    total_entries = total_entries.slice(index_where_should_post);
+
+    return total_entries;
+  };
+
+  //fetch_forever();
+
+  knex_instance
+    .select("audit_entry_id")
+    .from("last_audits")
+    .where("server_id", channel.guild!.id)
+    .then(async (last_entry_id_arr) => {
+      if (last_entry_id_arr.length == 0) {
+        //marking the last entry id as the last id
+
+        console.log("there is no last entry posted. inserting a last entry.");
+        let last_log_entries = await channel.guild!.fetchAuditLogs({
+          limit: 1,
+        });
+
+        if (last_log_entries.entries.size == 0) {
+          console.log("there are no audit log entries. do nothing.");
+          // there are no audit log entries. do nothing.
+          return;
+        }
+
+        let last_log_entry = last_log_entries.entries.lastKey();
+
+        update_last_entry(last_log_entry!);
+
+        return;
+      }
+
+      let last_entry_id: string = last_entry_id_arr[0].audit_entry_id;
+      return fetch_forever(last_entry_id);
+    })
+    .then((new_entries) => {
+      if (!new_entries || new_entries.length == 0) {
+        console.log("no new audit logs to post.");
+        return;
+      }
+
+      new_entries = new_entries!;
+      let send_promises = [];
+
+      for (let i = 0; i < new_entries.length; ++i) {
+        let entry = new_entries[i];
+        let post_str = `action:${entry.action}
+          action_type:${entry.actionType}
+          reason:${entry?.reason}
+        `;
+
+        send_promises.push(channel.send(post_str));
+      }
+
+      Promise.all(send_promises)
+        .then(() => {
+          console.log("all audit logs posted. updating last entry id.");
+          update_last_entry(new_entries![new_entries!.length - 1].id);
+        })
+        .catch(console.error);
+    });
+}
+
+//whitelist commands.
+function command_whitelist_user(message: Message, knex_instance: Knex) {
+  let mentions = message.mentions.members;
+
+  mentions!.forEach((member) => {
+    console.log("user id: ", member.user.id);
+    let the_id = member.user.id;
+
+    add_to_wl_and_handle_error(
+      knex_instance,
+      "whitelisted_users",
+      {
+        user_id: the_id,
+      },
+      member.displayName,
+      message
+    );
+  });
+}
+
+function command_whitelist_channel(message: Message, knex_instance: Knex) {
+  let mentions = message.mentions.channels;
+  mentions!.forEach((channel) => {
+    console.log("channel id: ", channel.id);
+    let the_id = channel.id;
+
+    // add to db
+    add_to_wl_and_handle_error(
+      knex_instance,
+      "whitelisted_channels",
+      {
+        channel_id: the_id,
+      },
+      channel,
+      message
+    );
+  });
+}
+
+function command_mute(message: Message, args: string[]) {
+  let mentions = message.mentions.members;
+
+  if (mentions?.size == 0) {
+    message.reply("You have to mention at least one member.");
+    return;
+  }
+
+  let days = parseInt(args[args.length - 1], 10);
+  if (isNaN(days)) {
+    message.reply("You must specify the amount of days.");
+    return;
+  }
+
+  mentions!.forEach((member) => {
+    member
+      .timeout(1000 * 60 * 60 * 24 * days)
+      .then(() =>
+        message.reply(`${member.displayName} was muted for ${days} days.`)
+      )
+      .catch(console.error);
+  });
+}
+
+function command_whitelist_url(
+  urls: string[],
+  message: Message,
+  knex_instance: Knex
+) {
+  urls.forEach((url) => {
+    // add to db
+    add_to_wl_and_handle_error(
+      knex_instance,
+      "whitelisted_urls",
+      {
+        url: url,
+      },
+      url,
+      message
+    );
+  });
+}
+// -------------- /COMMANDS end ----------
+
+// ---------- Button interactions ------------
+function clicked_but_roles(interaction: ButtonInteraction) {
+  let role_id = menu_roles[0];
+
+  // get member and role.
+  switch (interaction.customId) {
+    case "roles-stream": {
+      role_id = menu_roles[0];
+      break;
+    }
+    case "roles-video": {
+      role_id = menu_roles[1];
+      break;
+    }
+    case "roles-ark-pve": {
+      role_id = menu_roles[2];
+      break;
+    }
+    case "roles-ark-dm": {
+      role_id = menu_roles[3];
+      break;
+    }
+    default: {
+      console.log("wtf did u click");
+      break;
+    }
+  }
+
+  interaction
+    .guild!.roles.fetch(role_id)
+    .then((role) => {
+      let roles_manager = interaction.member!.roles as GuildMemberRoleManager;
+
+      if (roles_manager.cache.some((role) => role.id === role_id)) {
+        //has role, remove it
+        return [roles_manager.remove(role!), false];
+      } else {
+        //does not have role, add it
+        return [roles_manager.add(role!), true];
+      }
+    })
+    .then(([_, was_added]) => {
+      let reply_str = "";
+      if (was_added) {
+        reply_str = "Role assigned.";
+      } else {
+        reply_str = "Role removed.";
+      }
+
+      return interaction.reply({
+        content: reply_str,
+        ephemeral: true,
+      });
+    })
+    .then(() => console.log("Reply sent."))
+    .catch(console.error);
+}
+
+//Clicked on "accept" on #rules
+function clicked_but_rules(interaction: ButtonInteraction) {
+  console.log("clicked on agreed rules");
+
+  interaction
+    .guild!.roles.fetch(user_role)
+    .then((role) => {
+      let roles_manager = interaction.member!.roles as GuildMemberRoleManager;
+      return roles_manager.add(role!);
+    })
+    .then((_) => {
+      let reply_str = "You now have access to the server.";
+
+      return interaction.reply({
+        content: reply_str,
+        ephemeral: true,
+      });
+    });
+}
+
+//--------------- /Button interactions -------------
+
+function get_db_error(e: any): DBError {
+  if (e instanceof Error) {
+    if (
+      e.message.includes("SQLITE_CONSTRAINT_UNIQUE: UNIQUE constraint failed")
+    ) {
+      return DBError.DuplicateError;
+    } else {
+      return DBError.OtherError;
+    }
+  }
+  return DBError.OtherError;
+}
+
+function add_to_wl_and_handle_error<T>(
+  knex_inst: Knex,
+  table: string,
+  wl_value: T,
+  t_in_str: any,
+  message: Message
+) {
+  add_to_whitelist(knex_inst, table, wl_value)
+    .then((_) => {
+      message.channel.send(`${t_in_str} was added to the whitelist.`);
+    })
+    .catch((e) => {
+      switch (get_db_error(e)) {
+        case DBError.DuplicateError: {
+          message.channel.send(`${t_in_str} is already whitelisted.`);
+          break;
+        }
+        case DBError.OtherError: {
+          console.log(e);
+          message.channel.send("Database error. Please try again.");
+          break;
+        }
+      }
+    });
+}
+
+//TODO test this func
+function give_roles(m: GuildMember, role_ids: string[]) {
+  return m.roles!.add(role_ids);
+}
+
+async function should_whitelist(
+  client: Client,
+  message: Message,
+  knex_instance: Knex,
+  urls: string[]
+): Promise<boolean> {
+  // check if message is from own bot
+  if (client.user!.id == message.member!.user.id) {
+    console.log("url is ok bc it's the bot");
+    return true;
+  }
+
+  // check if message is from someone on whitelisted roles
+  if (
+    message.member!.roles.cache.some((role) =>
+      whitelisted_roles.includes(role.id)
+    )
+  ) {
+    console.log("url is ok bc has whitelisted role");
+    return true;
+  }
+
+  // check if message is in whitelisted channel
+  let channels = await knex_instance
+    .select("channel_id")
+    .from<WhitelistedChannel>("whitelisted_channels")
+    .where("channel_id", message.channel.id);
+  if (channels && channels.length > 0) {
+    console.log("url is ok bc channel");
+    return true;
+  }
+
+  // check if user is whitelisted
+  let users = await knex_instance
+    .select("user_id")
+    .from<WhitelistedUser>("whitelisted_users")
+    .where("user_id", message.member!.user.id);
+  if (users && users.length > 0) {
+    console.log("url is ok bc user");
+    return true;
+  }
+
+  // check if url is whitelisted
+  let found_urls = await knex_instance
+    .select("url")
+    .from<WhitelistedUrl>("whitelisted_urls")
+    .whereIn("url", urls);
+  if (found_urls && found_urls.length == urls.length) {
+    console.log("url is ok bc urls");
+    return true;
+  }
+
+  return false;
+}
+
+function run_audit_log(client: Client, knex_instance: Knex) {
+  const check_func = (channel: TextChannel) => {
+    post_audit_log(channel, knex_instance);
+  };
+
+  const check_log_period_secs = 30;
+
+  for (let guild_id of channel_ids.keys()) {
+    client.guilds
+      .fetch(guild_id)
+      .then((guild) => {
+        let guild_channels = channel_ids.get(guild_id)!;
+        return guild.channels.fetch(guild_channels.audit_log_channel_id);
+        //now get the channel
+      })
+      .then((channel) => {
+        let text_channel = channel as TextChannel;
+        check_func(text_channel);
+        setInterval(() => {
+          check_func(text_channel);
+        }, check_log_period_secs * 1000);
+      });
+  }
+
+  //TODO check if the guild is available. guild.available
+}
+
+function can_member_whitelist(member: GuildMember): boolean {
+  if (
+    member.roles.cache.some((role) => whitelist_mod_roles.includes(role.id))
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+main();
