@@ -102,6 +102,9 @@ async function main() {
 
     // Run the audit log check periodically
     run_audit_log(client, knex_instance);
+
+    //for debug. delete later
+    //print_all_audit_logs(client);
   });
 
   // interactionCreate listener
@@ -500,13 +503,14 @@ async function post_audit_log(channel: TextChannel, knex_instance: Knex) {
       let send_promises = [];
 
       for (let i = 0; i < new_entries.length; ++i) {
-        let entry = new_entries[i];
-        let post_str = `action:${entry.action}
-          action_type:${entry.actionType}
-          reason:${entry?.reason}
-        `;
+        // let entry = new_entries[i];
+        // let post_str = `action:${entry.action}
+        //   action_type:${entry.actionType}
+        //   reason:${entry?.reason}
+        // `;
 
-        send_promises.push(channel.send(post_str));
+        // send_promises.push(channel.send(post_str));
+        send_promises.push(format_audit_entry(channel, new_entries[i]));
       }
 
       Promise.all(send_promises)
@@ -815,6 +819,382 @@ function can_member_whitelist(member: GuildMember): boolean {
   }
 
   return false;
+}
+
+function format_audit_entry(
+  channel: TextChannel,
+  entry: GuildAuditLogsEntry
+): Promise<Message> {
+  let the_embed = new MessageEmbed()
+    .setColor(embed_color)
+    .setDescription("not done yet");
+
+  //<@userid> for tagging member
+  //<#channelid> for tagging channel
+  //<@&roleid> for tagging role
+
+  let the_title = "action type not implemented";
+  let the_description = "no description";
+
+  switch (entry.action as string) {
+    case "GUILD_UPDATE": {
+      the_title = "Guild Update";
+      the_description = `<@${entry.executor!.id}> has modified guild data`;
+      break;
+    }
+    case "CHANNEL_CREATE": {
+      the_title = "Channel Created";
+      the_description = `<@${
+        entry.executor!.id
+      }> has created a new channel: <#${entry.target!.id}>`;
+      break;
+    }
+    case "CHANNEL_UPDATE": {
+      the_title = "Channel Updated";
+      the_description = `<@${entry.executor!.id}> has updated the channel: <#${
+        entry.target!.id
+      }>`;
+      break;
+    }
+    case "CHANNEL_DELETE": {
+      the_title = "Channel Deleted";
+      the_description = `<@${entry.executor!.id}> has deleted the channel: <#${
+        entry.target!.id
+      }>`;
+      break;
+    }
+    case "CHANNEL_OVERWRITE_CREATE": {
+      the_title = "Channel Overwrite created";
+      the_description = `<@${
+        entry.executor!.id
+      }> has created a channel overwrite for the channel: <#${
+        entry.target!.id
+      }>`;
+      break;
+    }
+    case "CHANNEL_OVERWRITE_UPDATE": {
+      the_title = "Channel Overwrite updated";
+      the_description = `<@${
+        entry.executor!.id
+      }> has updated a channel overwrite for the channel: <#${
+        entry.target!.id
+      }>`;
+      break;
+    }
+    case "CHANNEL_OVERWRITE_DELETE": {
+      the_title = "Channel Overwrite deleted";
+      the_description = `<@${
+        entry.executor!.id
+      }> has deleted a channel overwrite for the channel: <#${
+        entry.target!.id
+      }>`;
+      break;
+    }
+    case "MEMBER_KICK": {
+      the_title = "Member Kicked";
+      the_description = `<@${entry.executor!.id}> has kicked <@${
+        entry.target!.id
+      }>`;
+      break;
+    }
+    case "MEMBER_PRUNE": {
+      the_title = "Member Prune";
+      the_description = `<@${entry.executor!.id}> has pruned members`;
+      break;
+    }
+    case "MEMBER_BAN_ADD": {
+      the_title = "Member ban";
+      the_description = `<@${entry.executor!.id}> has banned <@${
+        entry.target!.id
+      }>`;
+      break;
+    }
+    case "MEMBER_BAN_REMOVE": {
+      the_title = "Ban removed";
+      the_description = `<@${entry.executor!.id}> has removed the ban on <@${
+        entry.target!.id
+      }>`;
+      break;
+    }
+    case "MEMBER_UPDATE": {
+      the_title = "Member Update";
+      the_description = `<@${
+        entry.executor!.id
+      }> has updated the member data of <@${entry.target!.id}>`;
+      break;
+    }
+    case "MEMBER_ROLE_UPDATE": {
+      the_title = "Member Role Update";
+      the_description = `<@${entry.executor!.id}> has updated the roles of <@${
+        entry.target!.id
+      }>`;
+      break;
+    }
+    case "MEMBER_MOVE": {
+      the_title = "Member Move";
+      the_description = `<@${entry.executor!.id}> has moved <@${
+        entry.target!.id
+      }>`;
+      break;
+    }
+    case "MEMBER_DISCONNECT": {
+      the_title = "Member Move";
+      the_description = `<@${entry.executor!.id}> has moved <@${
+        entry.target!.id
+      }>`;
+      break;
+    }
+    case "BOT_ADD": {
+      the_title = "Bot Added";
+      the_description = `<@${entry.executor!.id}> has added a bot: <@${
+        entry.target!.id
+      }>`;
+      break;
+    }
+    case "ROLE_CREATE": {
+      the_title = "Role Creation";
+      the_description = `<@${entry.executor!.id}> has created a role: <@&${
+        entry.target!.id
+      }>`;
+      break;
+    }
+    case "ROLE_UPDATE": {
+      the_title = "Role Updated";
+      the_description = `<@${entry.executor!.id}> has updated a role: <@&${
+        entry.target!.id
+      }>`;
+      break;
+    }
+    case "ROLE_DELETE": {
+      the_title = "Role Deleted";
+      the_description = `<@${entry.executor!.id}> has deleted a role: <@&${
+        entry.target!.id
+      }>`;
+      break;
+    }
+    case "INVITE_CREATE": {
+      the_title = "Invite Creation";
+      the_description = `<@${entry.executor!.id}> has created a server invite`;
+      break;
+    }
+    case "INVITE_UPDATE": {
+      the_title = "Invite Updated";
+      the_description = `<@${entry.executor!.id}> has updated a server invite`;
+      break;
+    }
+    case "INVITE_DELETE": {
+      the_title = "Invite Deleted";
+      the_description = `<@${entry.executor!.id}> has deleted a server invite`;
+      break;
+    }
+    case "WEBHOOK_CREATE": {
+      the_title = "Webhook Created";
+      the_description = `<@${entry.executor!.id}> has created a webhook`;
+      break;
+    }
+    case "WEBHOOK_UPDATE": {
+      the_title = "Webhook Created";
+      the_description = `<@${entry.executor!.id}> has updated a webhook`;
+      break;
+    }
+    case "WEBHOOK_DELETE": {
+      the_title = "Webhook Deleted";
+      the_description = `<@${entry.executor!.id}> has deleted a webhook`;
+      break;
+    }
+    case "EMOJI_CREATE": {
+      the_title = "Emoji Created";
+      the_description = `<@${entry.executor!.id}> has created an emoji`;
+      break;
+    }
+    case "EMOJI_UPDATE": {
+      the_title = "Emoji Updated";
+      the_description = `<@${entry.executor!.id}> has updated an emoji`;
+      break;
+    }
+    case "EMOJI_DELETE": {
+      the_title = "Emoji Deleted";
+      the_description = `<@${entry.executor!.id}> has deleted an emoji`;
+      break;
+    }
+    case "MESSAGE_DELETE": {
+      the_title = "Message Deleted";
+      the_description = `<@${entry.executor!.id}> has deleted a message`;
+      // TODO(lucypero): show the message contents and who wrote the message
+      break;
+    }
+    case "MESSAGE_BULK_DELETE": {
+      the_title = "Message Bulk Deletion";
+      the_description = `<@${entry.executor!.id}> has bulk deleted messages`;
+      break;
+    }
+    case "MESSAGE_PIN": {
+      the_title = "Message Pinned";
+      the_description = `<@${entry.executor!.id}> has pinned a message`;
+      // TODO(lucypero): show the message contents and who wrote the message
+      break;
+    }
+    case "MESSAGE_UNPIN": {
+      the_title = "Message Unpinned";
+      the_description = `<@${entry.executor!.id}> has unpinned a message`;
+      // TODO(lucypero): show the message contents and who wrote the message
+      break;
+    }
+    case "INTEGRATION_CREATE": {
+      the_title = "Integration Created";
+      the_description = `<@${entry.executor!.id}> has created an integration`;
+      break;
+    }
+    case "INTEGRATION_UPDATE": {
+      the_title = "Integration Updated";
+      the_description = `<@${entry.executor!.id}> has updated an integration`;
+      break;
+    }
+    case "INTEGRATION_DELETE": {
+      the_title = "Integration Deleted";
+      the_description = `<@${entry.executor!.id}> has deleted an integration`;
+      break;
+    }
+    case "STAGE_INSTANCE_CREATE": {
+      the_title = "Stage Instance Created";
+      the_description = `<@${entry.executor!.id}> has created a stage instance`;
+      break;
+    }
+    case "STAGE_INSTANCE_UPDATE": {
+      the_title = "Stage Instance Updated";
+      the_description = `<@${entry.executor!.id}> has updated a stage instance`;
+      break;
+    }
+    case "STAGE_INSTANCE_DELETE": {
+      the_title = "Stage Instance Deleted";
+      the_description = `<@${entry.executor!.id}> has deleted a stage instance`;
+      break;
+    }
+    case "STICKER_CREATE": {
+      the_title = "Sticker Created";
+      the_description = `<@${entry.executor!.id}> has created a sticker`;
+      break;
+    }
+    case "STICKER_UPDATE": {
+      the_title = "Sticker Updated";
+      the_description = `<@${entry.executor!.id}> has updated a sticker`;
+      break;
+    }
+    case "STICKER_DELETE": {
+      the_title = "Sticker Deleted";
+      the_description = `<@${entry.executor!.id}> has deleted a sticker`;
+      break;
+    }
+    case "GUILD_SCHEDULED_EVENT_CREATE": {
+      the_title = "Scheduled Event Created";
+      the_description = `<@${
+        entry.executor!.id
+      }> has created a scheduled event`;
+      break;
+    }
+    case "GUILD_SCHEDULED_EVENT_UPDATE": {
+      the_title = "Scheduled Event Updated";
+      the_description = `<@${
+        entry.executor!.id
+      }> has updated a scheduled event`;
+      break;
+    }
+    case "GUILD_SCHEDULED_EVENT_DELETE": {
+      the_title = "Scheduled Event Deleted";
+      the_description = `<@${
+        entry.executor!.id
+      }> has deleted a scheduled event`;
+      break;
+    }
+    case "THREAD_CREATE": {
+      the_title = "Thread Created";
+      the_description = `<@${entry.executor!.id}> has created a thread`;
+      break;
+    }
+    case "THREAD_UPDATE": {
+      the_title = "Thread Updated";
+      the_description = `<@${entry.executor!.id}> has updated a thread`;
+      break;
+    }
+    case "THREAD_DELETE": {
+      the_title = "Thread Deleted";
+      the_description = `<@${entry.executor!.id}> has deleted a thread`;
+      break;
+    }
+    default: {
+      break;
+    }
+  }
+
+  the_embed = the_embed.setTitle(the_title);
+  if (entry.executor) {
+    the_embed = the_embed.setDescription(the_description);
+  }
+
+  if (entry.changes) {
+    let change_str = "";
+
+    entry.changes.forEach((change) => {
+      change_str += `key: \`\`\`${change.key}\`\`\``;
+      change_str += `old: \`\`\`${change.old}\`\`\``;
+      change_str += `new: \`\`\`${change.new}\`\`\``;
+      change_str += `\n`;
+    });
+
+    the_embed = the_embed.addFields({
+      name: "Changes:",
+      value: change_str,
+    });
+  }
+
+  if (entry.reason) {
+    the_embed = the_embed.addFields({
+      name: "Reason:",
+      value: entry.reason,
+    });
+  }
+
+  return channel.send({
+    embeds: [the_embed],
+  });
+}
+
+// NOTE(lucypero): for debug
+async function print_all_audit_logs(client: Client) {
+  const fetch_limit = 100;
+
+  const print_stuff = async function (channel: TextChannel) {
+    let log_entries = await channel.guild!.fetchAuditLogs({
+      limit: fetch_limit,
+    });
+
+    let the_entries = log_entries.entries;
+
+    //this sorts it from oldest -> newest (oldest will be the first item)
+    the_entries = the_entries.sort(
+      (a, b) => a.createdTimestamp - b.createdTimestamp
+    );
+
+    let the_entries_arr = Array.from(the_entries.values());
+    // for (const entry of the_entries_arr) {
+    //   format_audit_entry(channel, entry);
+    // }
+    console.log(the_entries_arr);
+  };
+
+  for (let guild_id of channel_ids.keys()) {
+    client.guilds
+      .fetch(guild_id)
+      .then((guild) => {
+        let guild_channels = channel_ids.get(guild_id)!;
+        return guild.channels.fetch(guild_channels.audit_log_channel_id);
+        //now get the channel
+      })
+      .then((channel) => {
+        let text_channel = channel as TextChannel;
+        print_stuff(text_channel);
+      });
+  }
 }
 
 main();
