@@ -11,6 +11,8 @@ import {
   GuildMember,
   GuildAuditLogsEntry,
   TextChannel,
+  PartialGuildMember,
+  Role,
 } from "discord.js";
 import { Knex, knex } from "knex";
 
@@ -89,7 +91,11 @@ async function main() {
   const knex_instance = knex(config);
 
   const client = new Client({
-    intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES],
+    intents: [
+      Intents.FLAGS.GUILDS,
+      Intents.FLAGS.GUILD_MESSAGES,
+      Intents.FLAGS.GUILD_MEMBERS,
+    ],
   });
 
   // ready listener
@@ -107,21 +113,67 @@ async function main() {
     //print_all_audit_logs(client);
   });
 
+  // member remove listener
+  // used to record their roles in case they come back.
+  client.on("guildMemberRemove", (member: GuildMember | PartialGuildMember) => {
+    console.log("member left");
+    let the_roles = Array.from(member.roles.cache.keys());
+
+    knex_instance<UserRole>("user_roles")
+      .where("user_id", member.user.id)
+      .del()
+      .then((entries_deleted) => {
+        console.log(
+          "deleted all the role entries for user ",
+          member.user.id,
+          "number of deleted rows: ",
+          entries_deleted
+        );
+      })
+      .catch(console.error);
+
+    for (let role of the_roles) {
+      knex_instance<UserRole>("user_roles")
+        .insert({ user_id: member.user.id, role_id: role })
+        .catch((e) => {
+          switch (get_db_error(e)) {
+            case DBError.DuplicateError: {
+              break;
+            }
+            case DBError.OtherError: {
+              console.log(e);
+              break;
+            }
+          }
+        });
+    }
+  });
+
+  client.on("guildMemberAdd", (member: GuildMember) => {
+    knex_instance
+      .select("role_id")
+      .from("user_roles")
+      .where("user_id", member.user.id)
+      .then((role_id_arr) => {
+        if (role_id_arr.length == 0) {
+        } else {
+          role_id_arr = role_id_arr.map((role_dict) => role_dict.role_id);
+          console.log("role id array:");
+          console.log(role_id_arr);
+
+          member.roles
+            .add(role_id_arr)
+            .then((_) => {
+              console.log("roles were added back to the returning member.");
+            })
+            .catch(console.error);
+        }
+      });
+  });
+
   // interactionCreate listener
   client.on("interactionCreate", async (interaction: Interaction) => {
     if (!interaction.isButton()) return;
-
-    //what kind of interaction is this?
-    // ButtonInteraction
-
-    // Stream, Video, Ark pve, Ark Deathmatch
-
-    // export const menu_roles = [
-    //   "932209399638917130",
-    //   "945788552065736714",
-    //   "945788635666587668",
-    //   "945788693673820201",
-    // ];
 
     //Button category
     let but_cat = interaction.customId.split("-")[0];
