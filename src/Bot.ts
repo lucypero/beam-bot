@@ -158,8 +158,6 @@ async function main() {
         if (role_id_arr.length == 0) {
         } else {
           role_id_arr = role_id_arr.map((role_dict) => role_dict.role_id);
-          console.log("role id array:");
-          console.log(role_id_arr);
 
           member.roles
             .add(role_id_arr)
