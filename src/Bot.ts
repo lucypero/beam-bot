@@ -12,7 +12,6 @@ import {
   GuildAuditLogsEntry,
   TextChannel,
   PartialGuildMember,
-  Role,
 } from "discord.js";
 import { Knex, knex } from "knex";
 
@@ -117,7 +116,7 @@ async function main() {
   // used to record their roles in case they come back.
   client.on("guildMemberRemove", (member: GuildMember | PartialGuildMember) => {
     console.log("member left");
-    let the_roles = Array.from(member.roles.cache.keys());
+    const the_roles = Array.from(member.roles.cache.keys());
 
     knex_instance<UserRole>("user_roles")
       .where("user_id", member.user.id)
@@ -132,7 +131,7 @@ async function main() {
       })
       .catch(console.error);
 
-    for (let role of the_roles) {
+    for (const role of the_roles) {
       knex_instance<UserRole>("user_roles")
         .insert({ user_id: member.user.id, role_id: role })
         .catch((e) => {
@@ -155,8 +154,7 @@ async function main() {
       .from("user_roles")
       .where("user_id", member.user.id)
       .then((role_id_arr) => {
-        if (role_id_arr.length == 0) {
-        } else {
+        if (role_id_arr.length != 0) {
           role_id_arr = role_id_arr.map((role_dict) => role_dict.role_id);
 
           member.roles
@@ -174,7 +172,7 @@ async function main() {
     if (!interaction.isButton()) return;
 
     //Button category
-    let but_cat = interaction.customId.split("-")[0];
+    const but_cat = interaction.customId.split("-")[0];
 
     switch (but_cat) {
       case "roles": {
@@ -200,7 +198,7 @@ async function main() {
     //let command_and_args = message.content.split(/\b(\s)/);
 
     //check if it is url
-    let matches = message.content.match(/\bhttps?:\/\/\S+/gi);
+    const matches = message.content.match(/\bhttps?:\/\/\S+/gi);
     console.log("matches:", matches);
     matches?.forEach((match) => {
       //
@@ -222,7 +220,7 @@ async function main() {
     }
     // check if it is command
 
-    let command_and_args = message.content.match(/\S+/g);
+    const command_and_args = message.content.match(/\S+/g);
 
     if (!command_and_args) return;
 
@@ -267,7 +265,7 @@ async function main() {
       case ".whitelist_url": {
         if (command_and_args.length < 2) return;
         if (can_member_whitelist(message.member!)) {
-          let urls = command_and_args.slice(1);
+          const urls = command_and_args.slice(1);
           command_whitelist_url(urls, message, knex_instance);
         } else {
           // Post that u don't have the authority to use this command.
@@ -467,8 +465,7 @@ async function post_audit_log(channel: TextChannel, knex_instance: Knex) {
     let index_where_should_post = 0;
 
     while (true) {
-      let log_entries;
-      log_entries = await channel.guild!.fetchAuditLogs({
+      const log_entries = await channel.guild!.fetchAuditLogs({
         limit: fetch_limit,
         before: before_id,
       });
@@ -479,7 +476,7 @@ async function post_audit_log(channel: TextChannel, knex_instance: Knex) {
       the_entries = the_entries.sort(
         (a, b) => a.createdTimestamp - b.createdTimestamp
       );
-      let the_entries_arr = Array.from(the_entries.values());
+      const the_entries_arr = Array.from(the_entries.values());
 
       total_entries = the_entries_arr.concat(total_entries);
 
@@ -523,7 +520,7 @@ async function post_audit_log(channel: TextChannel, knex_instance: Knex) {
         //marking the last entry id as the last id
 
         console.log("there is no last entry posted. inserting a last entry.");
-        let last_log_entries = await channel.guild!.fetchAuditLogs({
+        const last_log_entries = await channel.guild!.fetchAuditLogs({
           limit: 1,
         });
 
@@ -533,14 +530,14 @@ async function post_audit_log(channel: TextChannel, knex_instance: Knex) {
           return;
         }
 
-        let last_log_entry = last_log_entries.entries.lastKey();
+        const last_log_entry = last_log_entries.entries.lastKey();
 
         update_last_entry(last_log_entry!);
 
         return;
       }
 
-      let last_entry_id: string = last_entry_id_arr[0].audit_entry_id;
+      const last_entry_id: string = last_entry_id_arr[0].audit_entry_id;
       return fetch_forever(last_entry_id);
     })
     .then((new_entries) => {
@@ -550,7 +547,7 @@ async function post_audit_log(channel: TextChannel, knex_instance: Knex) {
       }
 
       new_entries = new_entries!;
-      let send_promises = [];
+      const send_promises = [];
 
       for (let i = 0; i < new_entries.length; ++i) {
         // let entry = new_entries[i];
@@ -574,11 +571,11 @@ async function post_audit_log(channel: TextChannel, knex_instance: Knex) {
 
 //whitelist commands.
 function command_whitelist_user(message: Message, knex_instance: Knex) {
-  let mentions = message.mentions.members;
+  const mentions = message.mentions.members;
 
   mentions!.forEach((member) => {
     console.log("user id: ", member.user.id);
-    let the_id = member.user.id;
+    const the_id = member.user.id;
 
     add_to_wl_and_handle_error(
       knex_instance,
@@ -593,10 +590,10 @@ function command_whitelist_user(message: Message, knex_instance: Knex) {
 }
 
 function command_whitelist_channel(message: Message, knex_instance: Knex) {
-  let mentions = message.mentions.channels;
+  const mentions = message.mentions.channels;
   mentions!.forEach((channel) => {
     console.log("channel id: ", channel.id);
-    let the_id = channel.id;
+    const the_id = channel.id;
 
     // add to db
     add_to_wl_and_handle_error(
@@ -612,14 +609,14 @@ function command_whitelist_channel(message: Message, knex_instance: Knex) {
 }
 
 function command_mute(message: Message, args: string[]) {
-  let mentions = message.mentions.members;
+  const mentions = message.mentions.members;
 
   if (mentions?.size == 0) {
     message.reply("You have to mention at least one member.");
     return;
   }
 
-  let days = parseInt(args[args.length - 1], 10);
+  const days = parseInt(args[args.length - 1], 10);
   if (isNaN(days)) {
     message.reply("You must specify the amount of days.");
     return;
@@ -686,7 +683,7 @@ function clicked_but_roles(interaction: ButtonInteraction) {
   interaction
     .guild!.roles.fetch(role_id)
     .then((role) => {
-      let roles_manager = interaction.member!.roles as GuildMemberRoleManager;
+      const roles_manager = interaction.member!.roles as GuildMemberRoleManager;
 
       if (roles_manager.cache.some((role) => role.id === role_id)) {
         //has role, remove it
@@ -720,11 +717,11 @@ function clicked_but_rules(interaction: ButtonInteraction) {
   interaction
     .guild!.roles.fetch(user_role)
     .then((role) => {
-      let roles_manager = interaction.member!.roles as GuildMemberRoleManager;
+      const roles_manager = interaction.member!.roles as GuildMemberRoleManager;
       return roles_manager.add(role!);
     })
     .then((_) => {
-      let reply_str = "You now have access to the server.";
+      const reply_str = "You now have access to the server.";
 
       return interaction.reply({
         content: reply_str,
@@ -802,7 +799,7 @@ async function should_whitelist(
   }
 
   // check if message is in whitelisted channel
-  let channels = await knex_instance
+  const channels = await knex_instance
     .select("channel_id")
     .from<WhitelistedChannel>("whitelisted_channels")
     .where("channel_id", message.channel.id);
@@ -812,7 +809,7 @@ async function should_whitelist(
   }
 
   // check if user is whitelisted
-  let users = await knex_instance
+  const users = await knex_instance
     .select("user_id")
     .from<WhitelistedUser>("whitelisted_users")
     .where("user_id", message.member!.user.id);
@@ -822,7 +819,7 @@ async function should_whitelist(
   }
 
   // check if url is whitelisted
-  let found_urls = await knex_instance
+  const found_urls = await knex_instance
     .select("url")
     .from<WhitelistedUrl>("whitelisted_urls")
     .whereIn("url", urls);
@@ -841,16 +838,16 @@ function run_audit_log(client: Client, knex_instance: Knex) {
 
   const check_log_period_secs = 30;
 
-  for (let guild_id of channel_ids.keys()) {
+  for (const guild_id of channel_ids.keys()) {
     client.guilds
       .fetch(guild_id)
       .then((guild) => {
-        let guild_channels = channel_ids.get(guild_id)!;
+        const guild_channels = channel_ids.get(guild_id)!;
         return guild.channels.fetch(guild_channels.audit_log_channel_id);
         //now get the channel
       })
       .then((channel) => {
-        let text_channel = channel as TextChannel;
+        const text_channel = channel as TextChannel;
         check_func(text_channel);
         setInterval(() => {
           check_func(text_channel);
@@ -1214,7 +1211,7 @@ async function print_all_audit_logs(client: Client) {
   const fetch_limit = 100;
 
   const print_stuff = async function (channel: TextChannel) {
-    let log_entries = await channel.guild!.fetchAuditLogs({
+    const log_entries = await channel.guild!.fetchAuditLogs({
       limit: fetch_limit,
     });
 
@@ -1225,23 +1222,23 @@ async function print_all_audit_logs(client: Client) {
       (a, b) => a.createdTimestamp - b.createdTimestamp
     );
 
-    let the_entries_arr = Array.from(the_entries.values());
+    const the_entries_arr = Array.from(the_entries.values());
     // for (const entry of the_entries_arr) {
     //   format_audit_entry(channel, entry);
     // }
     console.log(the_entries_arr);
   };
 
-  for (let guild_id of channel_ids.keys()) {
+  for (const guild_id of channel_ids.keys()) {
     client.guilds
       .fetch(guild_id)
       .then((guild) => {
-        let guild_channels = channel_ids.get(guild_id)!;
+        const guild_channels = channel_ids.get(guild_id)!;
         return guild.channels.fetch(guild_channels.audit_log_channel_id);
         //now get the channel
       })
       .then((channel) => {
-        let text_channel = channel as TextChannel;
+        const text_channel = channel as TextChannel;
         print_stuff(text_channel);
       });
   }
