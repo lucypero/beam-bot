@@ -33,6 +33,13 @@ interface UserRole {
   role_id: string;
 }
 
+interface ServerID {
+  server_id: string;
+  description: string;
+  ord: number;
+  the_id: string;
+}
+
 enum DBError {
   DuplicateError,
   OtherError,
@@ -42,7 +49,6 @@ const embed_color = "#0099ff";
 
 // TODO: get all these role values from a json file or a sql table so they are easier to modify
 
-// Stream, Video, Ark pve, Ark Deathmatch
 export const menu_roles = [
   "932209399638917130",
   "945788552065736714",
@@ -50,27 +56,42 @@ export const menu_roles = [
   "945788693673820201",
 ];
 
-// Role of someone who read the rules and can access the server
 const user_role = "953149523792920606";
 
-// Role of someone who can post any url
 const whitelisted_roles = ["953476405243547671"];
 
-// Role of someone who can whitelist anything
 const whitelist_mod_roles = ["953476916818608188"];
 
 //server ID's and its relevant channels
 // Channel id of the audit log
 
-interface RelevantChannels {
+interface RelevantIDs {
   audit_log_channel_id: string;
+  // Role of someone who can whitelist anything
+  whitelist_mod_roles: string[];
+  // Role of someone who can post any url
+  whitelisted_roles: string[];
+  // Role of someone who read the rules and can access the server
+  user_role: string;
+  // Stream, Video, Ark pve, Ark Deathmatch
+  // THE ORDER HERE MATTERS !!!
+  menu_roles: string[];
 }
 
-const channel_ids = new Map<string, RelevantChannels>([
+const relevant_ids = new Map<string, RelevantIDs>([
   [
     "953144972390039592",
     {
       audit_log_channel_id: "953792135713394708",
+      whitelist_mod_roles :["953476916818608188"],
+      whitelisted_roles :["953476405243547671"],
+      user_role : "953149523792920606",
+      menu_roles : [
+        "932209399638917130",
+        "945788552065736714",
+        "945788635666587668",
+        "945788693673820201",
+      ],
     },
   ],
 ]);
@@ -441,7 +462,7 @@ function command_post_role_message(message: Message) {
 async function post_audit_log(channel: TextChannel, knex_instance: Knex) {
   const fetch_limit = 3;
 
-  const update_last_entry = function (last_entry: string) {
+  const update_last_entry = function(last_entry: string) {
     knex_instance
       .raw(
         "insert or replace into last_audits values(:guild_id,:last_entry_id)",
@@ -454,7 +475,7 @@ async function post_audit_log(channel: TextChannel, knex_instance: Knex) {
       .catch(console.error);
   };
 
-  const fetch_forever = async function (
+  const fetch_forever = async function(
     last_entry_id: string
   ): Promise<GuildAuditLogsEntry[]> {
     let before_id: string | undefined = undefined;
@@ -838,11 +859,11 @@ function run_audit_log(client: Client, knex_instance: Knex) {
 
   const check_log_period_secs = 30;
 
-  for (const guild_id of channel_ids.keys()) {
+  for (const guild_id of relevant_ids.keys()) {
     client.guilds
       .fetch(guild_id)
       .then((guild) => {
-        const guild_channels = channel_ids.get(guild_id)!;
+        const guild_channels = relevant_ids.get(guild_id)!;
         return guild.channels.fetch(guild_channels.audit_log_channel_id);
         //now get the channel
       })
@@ -891,57 +912,47 @@ function format_audit_entry(
     }
     case "CHANNEL_CREATE": {
       the_title = "Channel Created";
-      the_description = `<@${
-        entry.executor!.id
-      }> has created a new channel: <#${entry.target!.id}>`;
+      the_description = `<@${entry.executor!.id
+        }> has created a new channel: <#${entry.target!.id}>`;
       break;
     }
     case "CHANNEL_UPDATE": {
       the_title = "Channel Updated";
-      the_description = `<@${entry.executor!.id}> has updated the channel: <#${
-        entry.target!.id
-      }>`;
+      the_description = `<@${entry.executor!.id}> has updated the channel: <#${entry.target!.id
+        }>`;
       break;
     }
     case "CHANNEL_DELETE": {
       the_title = "Channel Deleted";
-      the_description = `<@${entry.executor!.id}> has deleted the channel: <#${
-        entry.target!.id
-      }>`;
+      the_description = `<@${entry.executor!.id}> has deleted the channel: <#${entry.target!.id
+        }>`;
       break;
     }
     case "CHANNEL_OVERWRITE_CREATE": {
       the_title = "Channel Overwrite created";
-      the_description = `<@${
-        entry.executor!.id
-      }> has created a channel overwrite for the channel: <#${
-        entry.target!.id
-      }>`;
+      the_description = `<@${entry.executor!.id
+        }> has created a channel overwrite for the channel: <#${entry.target!.id
+        }>`;
       break;
     }
     case "CHANNEL_OVERWRITE_UPDATE": {
       the_title = "Channel Overwrite updated";
-      the_description = `<@${
-        entry.executor!.id
-      }> has updated a channel overwrite for the channel: <#${
-        entry.target!.id
-      }>`;
+      the_description = `<@${entry.executor!.id
+        }> has updated a channel overwrite for the channel: <#${entry.target!.id
+        }>`;
       break;
     }
     case "CHANNEL_OVERWRITE_DELETE": {
       the_title = "Channel Overwrite deleted";
-      the_description = `<@${
-        entry.executor!.id
-      }> has deleted a channel overwrite for the channel: <#${
-        entry.target!.id
-      }>`;
+      the_description = `<@${entry.executor!.id
+        }> has deleted a channel overwrite for the channel: <#${entry.target!.id
+        }>`;
       break;
     }
     case "MEMBER_KICK": {
       the_title = "Member Kicked";
-      the_description = `<@${entry.executor!.id}> has kicked <@${
-        entry.target!.id
-      }>`;
+      the_description = `<@${entry.executor!.id}> has kicked <@${entry.target!.id
+        }>`;
       break;
     }
     case "MEMBER_PRUNE": {
@@ -951,72 +962,62 @@ function format_audit_entry(
     }
     case "MEMBER_BAN_ADD": {
       the_title = "Member ban";
-      the_description = `<@${entry.executor!.id}> has banned <@${
-        entry.target!.id
-      }>`;
+      the_description = `<@${entry.executor!.id}> has banned <@${entry.target!.id
+        }>`;
       break;
     }
     case "MEMBER_BAN_REMOVE": {
       the_title = "Ban removed";
-      the_description = `<@${entry.executor!.id}> has removed the ban on <@${
-        entry.target!.id
-      }>`;
+      the_description = `<@${entry.executor!.id}> has removed the ban on <@${entry.target!.id
+        }>`;
       break;
     }
     case "MEMBER_UPDATE": {
       the_title = "Member Update";
-      the_description = `<@${
-        entry.executor!.id
-      }> has updated the member data of <@${entry.target!.id}>`;
+      the_description = `<@${entry.executor!.id
+        }> has updated the member data of <@${entry.target!.id}>`;
       break;
     }
     case "MEMBER_ROLE_UPDATE": {
       the_title = "Member Role Update";
-      the_description = `<@${entry.executor!.id}> has updated the roles of <@${
-        entry.target!.id
-      }>`;
+      the_description = `<@${entry.executor!.id}> has updated the roles of <@${entry.target!.id
+        }>`;
       break;
     }
     case "MEMBER_MOVE": {
       the_title = "Member Move";
-      the_description = `<@${entry.executor!.id}> has moved <@${
-        entry.target!.id
-      }>`;
+      the_description = `<@${entry.executor!.id}> has moved <@${entry.target!.id
+        }>`;
       break;
     }
     case "MEMBER_DISCONNECT": {
       the_title = "Member Move";
-      the_description = `<@${entry.executor!.id}> has moved <@${
-        entry.target!.id
-      }>`;
+      the_description = `<@${entry.executor!.id}> has moved <@${entry.target!.id
+        }>`;
       break;
     }
     case "BOT_ADD": {
       the_title = "Bot Added";
-      the_description = `<@${entry.executor!.id}> has added a bot: <@${
-        entry.target!.id
-      }>`;
+      the_description = `<@${entry.executor!.id}> has added a bot: <@${entry.target!.id
+        }>`;
       break;
     }
     case "ROLE_CREATE": {
       the_title = "Role Creation";
-      the_description = `<@${entry.executor!.id}> has created a role: <@&${
-        entry.target!.id
-      }>`;
+      the_description = `<@${entry.executor!.id}> has created a role: <@&${entry.target!.id
+        }>`;
       break;
     }
     case "ROLE_UPDATE": {
       the_title = "Role Updated";
-      the_description = `<@${entry.executor!.id}> has updated a role: <@&${
-        entry.target!.id
-      }>`;
+      the_description = `<@${entry.executor!.id}> has updated a role: <@&${entry.target!.id
+        }>`;
       break;
     }
     case "ROLE_DELETE": {
       the_title = "Role Deleted";
-      the_description = `<@${entry.executor!.id}> has deleted a role: <@&${
-        entry.target!.id
-      }>`;
+      the_description = `<@${entry.executor!.id}> has deleted a role: <@&${entry.target!.id
+        }>`;
       break;
     }
     case "INVITE_CREATE": {
@@ -1134,23 +1135,20 @@ function format_audit_entry(
     }
     case "GUILD_SCHEDULED_EVENT_CREATE": {
       the_title = "Scheduled Event Created";
-      the_description = `<@${
-        entry.executor!.id
-      }> has created a scheduled event`;
+      the_description = `<@${entry.executor!.id
+        }> has created a scheduled event`;
       break;
     }
     case "GUILD_SCHEDULED_EVENT_UPDATE": {
       the_title = "Scheduled Event Updated";
-      the_description = `<@${
-        entry.executor!.id
-      }> has updated a scheduled event`;
+      the_description = `<@${entry.executor!.id
+        }> has updated a scheduled event`;
       break;
     }
     case "GUILD_SCHEDULED_EVENT_DELETE": {
       the_title = "Scheduled Event Deleted";
-      the_description = `<@${
-        entry.executor!.id
-      }> has deleted a scheduled event`;
+      the_description = `<@${entry.executor!.id
+        }> has deleted a scheduled event`;
       break;
     }
     case "THREAD_CREATE": {
@@ -1210,7 +1208,7 @@ function format_audit_entry(
 async function print_all_audit_logs(client: Client) {
   const fetch_limit = 100;
 
-  const print_stuff = async function (channel: TextChannel) {
+  const print_stuff = async function(channel: TextChannel) {
     const log_entries = await channel.guild!.fetchAuditLogs({
       limit: fetch_limit,
     });
@@ -1229,11 +1227,11 @@ async function print_all_audit_logs(client: Client) {
     console.log(the_entries_arr);
   };
 
-  for (const guild_id of channel_ids.keys()) {
+  for (const guild_id of relevant_ids.keys()) {
     client.guilds
       .fetch(guild_id)
       .then((guild) => {
-        const guild_channels = channel_ids.get(guild_id)!;
+        const guild_channels = relevant_ids.get(guild_id)!;
         return guild.channels.fetch(guild_channels.audit_log_channel_id);
         //now get the channel
       })

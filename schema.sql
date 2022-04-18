@@ -13,3 +13,10 @@ unique(user_id, role_id)
 CREATE TABLE last_audits (
   server_id varchar(255) PRIMARY KEY,
   audit_entry_id varchar(255) not null);
+CREATE TABLE server_ids (
+server_id varchar(255) not null,
+description varchar(255) not null,
+ord integer not null,
+the_id varchar(255) not null,
+unique(server_id, the_id)
+);
