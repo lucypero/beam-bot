@@ -78,23 +78,24 @@ interface RelevantIDs {
   menu_roles: string[];
 }
 
-const relevant_ids = new Map<string, RelevantIDs>([
-  [
-    "953144972390039592",
-    {
-      audit_log_channel_id: "953792135713394708",
-      whitelist_mod_roles :["953476916818608188"],
-      whitelisted_roles :["953476405243547671"],
-      user_role : "953149523792920606",
-      menu_roles : [
-        "932209399638917130",
-        "945788552065736714",
-        "945788635666587668",
-        "945788693673820201",
-      ],
-    },
-  ],
-]);
+// const server_ids = new Map<string, RelevantIDs>([
+//   [
+//     "953144972390039592",
+//     {
+//       audit_log_channel_id: "953792135713394708",
+//       whitelist_mod_roles :["953476916818608188"],
+//       whitelisted_roles :["953476405243547671"],
+//       user_role : "953149523792920606",
+//       menu_roles : [
+//         "932209399638917130",
+//         "945788552065736714",
+//         "945788635666587668",
+//         "945788693673820201",
+//       ],
+//     },
+//   ],
+// ]);
+
 
 async function main() {
   console.log("Bot is starting...");
@@ -109,6 +110,10 @@ async function main() {
   };
 
   const knex_instance = knex(config);
+
+  const server_ids = await get_server_ids(knex_instance);
+  console.log("parsed server ids:")
+  console.log(server_ids)
 
   const client = new Client({
     intents: [
@@ -127,7 +132,7 @@ async function main() {
     console.log(`${client.user.username} is online`);
 
     // Run the audit log check periodically
-    run_audit_log(client, knex_instance);
+    run_audit_log(client, knex_instance, server_ids);
 
     //for debug. delete later
     //print_all_audit_logs(client);
@@ -852,18 +857,18 @@ async function should_whitelist(
   return false;
 }
 
-function run_audit_log(client: Client, knex_instance: Knex) {
+function run_audit_log(client: Client, knex_instance: Knex, server_ids: Map<string, RelevantIDs>) {
   const check_func = (channel: TextChannel) => {
     post_audit_log(channel, knex_instance);
   };
 
   const check_log_period_secs = 30;
 
-  for (const guild_id of relevant_ids.keys()) {
+  for (const guild_id of server_ids.keys()) {
     client.guilds
       .fetch(guild_id)
       .then((guild) => {
-        const guild_channels = relevant_ids.get(guild_id)!;
+        const guild_channels = server_ids.get(guild_id)!;
         return guild.channels.fetch(guild_channels.audit_log_channel_id);
         //now get the channel
       })
@@ -1205,7 +1210,7 @@ function format_audit_entry(
 }
 
 // NOTE(lucypero): for debug
-async function print_all_audit_logs(client: Client) {
+async function print_all_audit_logs(client: Client, server_ids: Map<string, RelevantIDs>) {
   const fetch_limit = 100;
 
   const print_stuff = async function(channel: TextChannel) {
@@ -1227,11 +1232,11 @@ async function print_all_audit_logs(client: Client) {
     console.log(the_entries_arr);
   };
 
-  for (const guild_id of relevant_ids.keys()) {
+  for (const guild_id of server_ids.keys()) {
     client.guilds
       .fetch(guild_id)
       .then((guild) => {
-        const guild_channels = relevant_ids.get(guild_id)!;
+        const guild_channels = server_ids.get(guild_id)!;
         return guild.channels.fetch(guild_channels.audit_log_channel_id);
         //now get the channel
       })
@@ -1240,6 +1245,90 @@ async function print_all_audit_logs(client: Client) {
         print_stuff(text_channel);
       });
   }
+}
+
+async function get_server_ids(knex_instance: Knex): Promise<Map<string, RelevantIDs>> {
+
+  const server_ids = new Map<string, RelevantIDs>([]);
+
+  // interface ServerID {
+  //   server_id: string;
+  //   description: string;
+  //   ord: number;
+  //   the_id: string;
+  // }  
+
+  let rows = await knex_instance
+    .select("*")
+    .from("server_ids");
+
+  rows = rows.sort((a, b) => {
+
+    if (a.server_id == b.server_id) {
+      if (a.description == b.description) {
+        return (a.ord - b.ord)
+      } else {
+        return (a.description - b.description)
+      }
+    } else {
+      return (a.server_id - b.server_id)
+    }
+  })
+
+  console.log("printing rows")
+  console.log(rows)
+
+  let current_server_id = rows[0].server_id
+  let rel_ids: RelevantIDs = {
+    audit_log_channel_id: "",
+    whitelist_mod_roles: [],
+    whitelisted_roles: [],
+    user_role: "",
+    menu_roles: []
+  }
+
+  for (const row of rows) {
+
+    if (row.server_id != current_server_id) {
+      // we are done parsing all the ids of a server.
+      server_ids.set(current_server_id, rel_ids);
+      current_server_id = row.server_id;
+      rel_ids = {
+        audit_log_channel_id: "",
+        whitelist_mod_roles: [],
+        whitelisted_roles: [],
+        user_role: "",
+        menu_roles: []
+      }
+    }
+
+    switch (row.description) {
+      case "audit_log_channel": {
+        rel_ids.audit_log_channel_id = row.the_id;
+        break;
+      }
+      case "whitelist_mod_role": {
+        rel_ids.whitelist_mod_roles.push(row.the_id);
+        break;
+      }
+      case "whitelisted_role": {
+        rel_ids.whitelisted_roles.push(row.the_id);
+
+        break;
+      }
+      case "user_role": {
+        rel_ids.user_role = row.the_id;
+        break;
+      }
+      case "menu_role": {
+        rel_ids.menu_roles.push(row.the_id);
+        break;
+      }
+    }
+  }
+
+  server_ids.set(current_server_id, rel_ids);
+  return server_ids;
 }
 
 main();
