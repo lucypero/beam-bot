@@ -47,24 +47,10 @@ enum DBError {
 
 const embed_color = "#0099ff";
 
-// TODO: get all these role values from a json file or a sql table so they are easier to modify
-
-export const menu_roles = [
-  "932209399638917130",
-  "945788552065736714",
-  "945788635666587668",
-  "945788693673820201",
-];
-
-const user_role = "953149523792920606";
-
-const whitelisted_roles = ["953476405243547671"];
-
-const whitelist_mod_roles = ["953476916818608188"];
-
 //server ID's and its relevant channels
 // Channel id of the audit log
 
+type Server_IDs = Map<string, RelevantIDs>;
 interface RelevantIDs {
   audit_log_channel_id: string;
   // Role of someone who can whitelist anything
@@ -77,25 +63,6 @@ interface RelevantIDs {
   // THE ORDER HERE MATTERS !!!
   menu_roles: string[];
 }
-
-// const server_ids = new Map<string, RelevantIDs>([
-//   [
-//     "953144972390039592",
-//     {
-//       audit_log_channel_id: "953792135713394708",
-//       whitelist_mod_roles :["953476916818608188"],
-//       whitelisted_roles :["953476405243547671"],
-//       user_role : "953149523792920606",
-//       menu_roles : [
-//         "932209399638917130",
-//         "945788552065736714",
-//         "945788635666587668",
-//         "945788693673820201",
-//       ],
-//     },
-//   ],
-// ]);
-
 
 async function main() {
   console.log("Bot is starting...");
@@ -112,8 +79,6 @@ async function main() {
   const knex_instance = knex(config);
 
   const server_ids = await get_server_ids(knex_instance);
-  console.log("parsed server ids:")
-  console.log(server_ids)
 
   const client = new Client({
     intents: [
@@ -196,17 +161,18 @@ async function main() {
   // interactionCreate listener
   client.on("interactionCreate", async (interaction: Interaction) => {
     if (!interaction.isButton()) return;
+    if (!interaction.guild) return;
 
     //Button category
     const but_cat = interaction.customId.split("-")[0];
 
     switch (but_cat) {
       case "roles": {
-        clicked_but_roles(interaction);
+        clicked_but_roles(interaction, server_ids);
         break;
       }
       case "rules": {
-        clicked_but_rules(interaction);
+        clicked_but_rules(interaction, server_ids);
         break;
       }
       default: {
@@ -233,7 +199,13 @@ async function main() {
 
     if (
       matches &&
-      !(await should_whitelist(client, message, knex_instance, matches))
+      !(await should_whitelist(
+        client,
+        message,
+        knex_instance,
+        matches,
+        server_ids
+      ))
     ) {
       console.log("did not pass the whitelist. deleting message.");
       // we delete message
@@ -257,20 +229,35 @@ async function main() {
     // commands
     switch (command_and_args[0]) {
       case ".mute": {
-        command_mute(message, command_and_args.slice(1));
+        if (can_member_whitelist(message.member!, server_ids)) {
+          command_mute(message, command_and_args.slice(1));
+        } else {
+          // Post that u don't have the authority to use this command.
+          message.reply("You can't use that command.");
+        }
         break;
       }
       case ".bot_post_role_message": {
-        command_post_role_message(message);
+        if (can_member_whitelist(message.member!, server_ids)) {
+          command_post_role_message(message, server_ids);
+        } else {
+          // Post that u don't have the authority to use this command.
+          message.reply("You can't use that command.");
+        }
         break;
       }
       case ".bot_post_rules": {
-        command_post_rules(message);
+        if (can_member_whitelist(message.member!, server_ids)) {
+          command_post_rules(message);
+        } else {
+          // Post that u don't have the authority to use this command.
+          message.reply("You can't use that command.");
+        }
         break;
       }
       case ".whitelist_user": {
         if (command_and_args.length < 2) return;
-        if (can_member_whitelist(message.member!)) {
+        if (can_member_whitelist(message.member!, server_ids)) {
           command_whitelist_user(message, knex_instance);
         } else {
           // Post that u don't have the authority to use this command.
@@ -280,7 +267,7 @@ async function main() {
       }
       case ".whitelist_channel": {
         if (command_and_args.length < 2) return;
-        if (can_member_whitelist(message.member!)) {
+        if (can_member_whitelist(message.member!, server_ids)) {
           command_whitelist_channel(message, knex_instance);
         } else {
           // Post that u don't have the authority to use this command.
@@ -290,7 +277,7 @@ async function main() {
       }
       case ".whitelist_url": {
         if (command_and_args.length < 2) return;
-        if (can_member_whitelist(message.member!)) {
+        if (can_member_whitelist(message.member!, server_ids)) {
           const urls = command_and_args.slice(1);
           command_whitelist_url(urls, message, knex_instance);
         } else {
@@ -413,18 +400,25 @@ function command_post_rules(message: Message) {
 }
 
 //post the role message
-function command_post_role_message(message: Message) {
+function command_post_role_message(message: Message, server_ids: Server_IDs) {
+  const ids = server_ids.get(message.guild!.id);
+
+  if (!ids) {
+    console.log("The server that you are in is not in the database.");
+    return;
+  }
+
   const the_embed = new MessageEmbed()
     .setColor(embed_color)
-    //.setTitle("Rules")
+    .setTitle("Rules")
     .addFields({
       name: "Durch Klicken auf den entsprechenden Button könnt ihr euch die Rolle selbst geben und nehmen.",
       value: `Die Stream und Videorolle bekommen alle standardmäßig. Wenn ihr bei Streams oder Videos nicht gepingt werden wollt, könnt ihr sie durch klicken auf den jeweiligen Button wieder entfernen.
 
-<@&932209399638917130> = Werde bei jedem Stream von Beam gepingt.
-<@&945788552065736714> = Werde bei jedem Video von Beam gepingt.
-<@&945788635666587668> = Infos & Events rund um den PvE Community Server.
-<@&945788693673820201> = Infos & Events rund um den Deathmatch Server.`,
+<@&${ids.menu_roles[0]}> = Werde bei jedem Stream von Beam gepingt.
+<@&${ids.menu_roles[1]}> = Werde bei jedem Video von Beam gepingt.
+<@&${ids.menu_roles[2]}> = Infos & Events rund um den PvE Community Server.
+<@&${ids.menu_roles[1]}> = Infos & Events rund um den Deathmatch Server.`,
     });
 
   const row = new MessageActionRow().addComponents(
@@ -467,7 +461,7 @@ function command_post_role_message(message: Message) {
 async function post_audit_log(channel: TextChannel, knex_instance: Knex) {
   const fetch_limit = 3;
 
-  const update_last_entry = function(last_entry: string) {
+  const update_last_entry = function (last_entry: string) {
     knex_instance
       .raw(
         "insert or replace into last_audits values(:guild_id,:last_entry_id)",
@@ -480,7 +474,7 @@ async function post_audit_log(channel: TextChannel, knex_instance: Knex) {
       .catch(console.error);
   };
 
-  const fetch_forever = async function(
+  const fetch_forever = async function (
     last_entry_id: string
   ): Promise<GuildAuditLogsEntry[]> {
     let before_id: string | undefined = undefined;
@@ -679,25 +673,35 @@ function command_whitelist_url(
 // -------------- /COMMANDS end ----------
 
 // ---------- Button interactions ------------
-function clicked_but_roles(interaction: ButtonInteraction) {
-  let role_id = menu_roles[0];
+function clicked_but_roles(
+  interaction: ButtonInteraction,
+  server_ids: Server_IDs
+) {
+  const ids = server_ids.get(interaction.guild!.id);
+
+  if (!ids) {
+    console.log("The server that you are in is not in the database.");
+    return;
+  }
+
+  let role_id = ids.menu_roles[0];
 
   // get member and role.
   switch (interaction.customId) {
     case "roles-stream": {
-      role_id = menu_roles[0];
+      role_id = ids.menu_roles[0];
       break;
     }
     case "roles-video": {
-      role_id = menu_roles[1];
+      role_id = ids.menu_roles[1];
       break;
     }
     case "roles-ark-pve": {
-      role_id = menu_roles[2];
+      role_id = ids.menu_roles[2];
       break;
     }
     case "roles-ark-dm": {
-      role_id = menu_roles[3];
+      role_id = ids.menu_roles[3];
       break;
     }
     default: {
@@ -737,11 +741,20 @@ function clicked_but_roles(interaction: ButtonInteraction) {
 }
 
 //Clicked on "accept" on #rules
-function clicked_but_rules(interaction: ButtonInteraction) {
+function clicked_but_rules(
+  interaction: ButtonInteraction,
+  server_ids: Server_IDs
+) {
   console.log("clicked on agreed rules");
+  const ids = server_ids.get(interaction.guild!.id);
+
+  if (!ids) {
+    console.log("The server that you are in is not in the database.");
+    return;
+  }
 
   interaction
-    .guild!.roles.fetch(user_role)
+    .guild!.roles.fetch(ids.user_role)
     .then((role) => {
       const roles_manager = interaction.member!.roles as GuildMemberRoleManager;
       return roles_manager.add(role!);
@@ -806,8 +819,16 @@ async function should_whitelist(
   client: Client,
   message: Message,
   knex_instance: Knex,
-  urls: string[]
+  urls: string[],
+  server_ids: Server_IDs
 ): Promise<boolean> {
+  const ids = server_ids.get(message.guild!.id);
+
+  if (!ids) {
+    console.log("The server that you are in is not in the database.");
+    return false;
+  }
+
   // check if message is from own bot
   if (client.user!.id == message.member!.user.id) {
     console.log("url is ok bc it's the bot");
@@ -817,7 +838,7 @@ async function should_whitelist(
   // check if message is from someone on whitelisted roles
   if (
     message.member!.roles.cache.some((role) =>
-      whitelisted_roles.includes(role.id)
+      ids.whitelisted_roles.includes(role.id)
     )
   ) {
     console.log("url is ok bc has whitelisted role");
@@ -857,7 +878,11 @@ async function should_whitelist(
   return false;
 }
 
-function run_audit_log(client: Client, knex_instance: Knex, server_ids: Map<string, RelevantIDs>) {
+function run_audit_log(
+  client: Client,
+  knex_instance: Knex,
+  server_ids: Map<string, RelevantIDs>
+) {
   const check_func = (channel: TextChannel) => {
     post_audit_log(channel, knex_instance);
   };
@@ -884,9 +909,19 @@ function run_audit_log(client: Client, knex_instance: Knex, server_ids: Map<stri
   //TODO check if the guild is available. guild.available
 }
 
-function can_member_whitelist(member: GuildMember): boolean {
+function can_member_whitelist(
+  member: GuildMember,
+  server_ids: Server_IDs
+): boolean {
+  const ids = server_ids.get(member.guild!.id);
+
+  if (!ids) {
+    console.log("The server that you are in is not in the database.");
+    return false;
+  }
+
   if (
-    member.roles.cache.some((role) => whitelist_mod_roles.includes(role.id))
+    member.roles.cache.some((role) => ids.whitelist_mod_roles.includes(role.id))
   ) {
     return true;
   }
@@ -917,47 +952,57 @@ function format_audit_entry(
     }
     case "CHANNEL_CREATE": {
       the_title = "Channel Created";
-      the_description = `<@${entry.executor!.id
-        }> has created a new channel: <#${entry.target!.id}>`;
+      the_description = `<@${
+        entry.executor!.id
+      }> has created a new channel: <#${entry.target!.id}>`;
       break;
     }
     case "CHANNEL_UPDATE": {
       the_title = "Channel Updated";
-      the_description = `<@${entry.executor!.id}> has updated the channel: <#${entry.target!.id
-        }>`;
+      the_description = `<@${entry.executor!.id}> has updated the channel: <#${
+        entry.target!.id
+      }>`;
       break;
     }
     case "CHANNEL_DELETE": {
       the_title = "Channel Deleted";
-      the_description = `<@${entry.executor!.id}> has deleted the channel: <#${entry.target!.id
-        }>`;
+      the_description = `<@${entry.executor!.id}> has deleted the channel: <#${
+        entry.target!.id
+      }>`;
       break;
     }
     case "CHANNEL_OVERWRITE_CREATE": {
       the_title = "Channel Overwrite created";
-      the_description = `<@${entry.executor!.id
-        }> has created a channel overwrite for the channel: <#${entry.target!.id
-        }>`;
+      the_description = `<@${
+        entry.executor!.id
+      }> has created a channel overwrite for the channel: <#${
+        entry.target!.id
+      }>`;
       break;
     }
     case "CHANNEL_OVERWRITE_UPDATE": {
       the_title = "Channel Overwrite updated";
-      the_description = `<@${entry.executor!.id
-        }> has updated a channel overwrite for the channel: <#${entry.target!.id
-        }>`;
+      the_description = `<@${
+        entry.executor!.id
+      }> has updated a channel overwrite for the channel: <#${
+        entry.target!.id
+      }>`;
       break;
     }
     case "CHANNEL_OVERWRITE_DELETE": {
       the_title = "Channel Overwrite deleted";
-      the_description = `<@${entry.executor!.id
-        }> has deleted a channel overwrite for the channel: <#${entry.target!.id
-        }>`;
+      the_description = `<@${
+        entry.executor!.id
+      }> has deleted a channel overwrite for the channel: <#${
+        entry.target!.id
+      }>`;
       break;
     }
     case "MEMBER_KICK": {
       the_title = "Member Kicked";
-      the_description = `<@${entry.executor!.id}> has kicked <@${entry.target!.id
-        }>`;
+      the_description = `<@${entry.executor!.id}> has kicked <@${
+        entry.target!.id
+      }>`;
       break;
     }
     case "MEMBER_PRUNE": {
@@ -967,62 +1012,72 @@ function format_audit_entry(
     }
     case "MEMBER_BAN_ADD": {
       the_title = "Member ban";
-      the_description = `<@${entry.executor!.id}> has banned <@${entry.target!.id
-        }>`;
+      the_description = `<@${entry.executor!.id}> has banned <@${
+        entry.target!.id
+      }>`;
       break;
     }
     case "MEMBER_BAN_REMOVE": {
       the_title = "Ban removed";
-      the_description = `<@${entry.executor!.id}> has removed the ban on <@${entry.target!.id
-        }>`;
+      the_description = `<@${entry.executor!.id}> has removed the ban on <@${
+        entry.target!.id
+      }>`;
       break;
     }
     case "MEMBER_UPDATE": {
       the_title = "Member Update";
-      the_description = `<@${entry.executor!.id
-        }> has updated the member data of <@${entry.target!.id}>`;
+      the_description = `<@${
+        entry.executor!.id
+      }> has updated the member data of <@${entry.target!.id}>`;
       break;
     }
     case "MEMBER_ROLE_UPDATE": {
       the_title = "Member Role Update";
-      the_description = `<@${entry.executor!.id}> has updated the roles of <@${entry.target!.id
-        }>`;
+      the_description = `<@${entry.executor!.id}> has updated the roles of <@${
+        entry.target!.id
+      }>`;
       break;
     }
     case "MEMBER_MOVE": {
       the_title = "Member Move";
-      the_description = `<@${entry.executor!.id}> has moved <@${entry.target!.id
-        }>`;
+      the_description = `<@${entry.executor!.id}> has moved <@${
+        entry.target!.id
+      }>`;
       break;
     }
     case "MEMBER_DISCONNECT": {
       the_title = "Member Move";
-      the_description = `<@${entry.executor!.id}> has moved <@${entry.target!.id
-        }>`;
+      the_description = `<@${entry.executor!.id}> has moved <@${
+        entry.target!.id
+      }>`;
       break;
     }
     case "BOT_ADD": {
       the_title = "Bot Added";
-      the_description = `<@${entry.executor!.id}> has added a bot: <@${entry.target!.id
-        }>`;
+      the_description = `<@${entry.executor!.id}> has added a bot: <@${
+        entry.target!.id
+      }>`;
       break;
     }
     case "ROLE_CREATE": {
       the_title = "Role Creation";
-      the_description = `<@${entry.executor!.id}> has created a role: <@&${entry.target!.id
-        }>`;
+      the_description = `<@${entry.executor!.id}> has created a role: <@&${
+        entry.target!.id
+      }>`;
       break;
     }
     case "ROLE_UPDATE": {
       the_title = "Role Updated";
-      the_description = `<@${entry.executor!.id}> has updated a role: <@&${entry.target!.id
-        }>`;
+      the_description = `<@${entry.executor!.id}> has updated a role: <@&${
+        entry.target!.id
+      }>`;
       break;
     }
     case "ROLE_DELETE": {
       the_title = "Role Deleted";
-      the_description = `<@${entry.executor!.id}> has deleted a role: <@&${entry.target!.id
-        }>`;
+      the_description = `<@${entry.executor!.id}> has deleted a role: <@&${
+        entry.target!.id
+      }>`;
       break;
     }
     case "INVITE_CREATE": {
@@ -1140,20 +1195,23 @@ function format_audit_entry(
     }
     case "GUILD_SCHEDULED_EVENT_CREATE": {
       the_title = "Scheduled Event Created";
-      the_description = `<@${entry.executor!.id
-        }> has created a scheduled event`;
+      the_description = `<@${
+        entry.executor!.id
+      }> has created a scheduled event`;
       break;
     }
     case "GUILD_SCHEDULED_EVENT_UPDATE": {
       the_title = "Scheduled Event Updated";
-      the_description = `<@${entry.executor!.id
-        }> has updated a scheduled event`;
+      the_description = `<@${
+        entry.executor!.id
+      }> has updated a scheduled event`;
       break;
     }
     case "GUILD_SCHEDULED_EVENT_DELETE": {
       the_title = "Scheduled Event Deleted";
-      the_description = `<@${entry.executor!.id
-        }> has deleted a scheduled event`;
+      the_description = `<@${
+        entry.executor!.id
+      }> has deleted a scheduled event`;
       break;
     }
     case "THREAD_CREATE": {
@@ -1210,10 +1268,13 @@ function format_audit_entry(
 }
 
 // NOTE(lucypero): for debug
-async function print_all_audit_logs(client: Client, server_ids: Map<string, RelevantIDs>) {
+async function print_all_audit_logs(
+  client: Client,
+  server_ids: Map<string, RelevantIDs>
+) {
   const fetch_limit = 100;
 
-  const print_stuff = async function(channel: TextChannel) {
+  const print_stuff = async function (channel: TextChannel) {
     const log_entries = await channel.guild!.fetchAuditLogs({
       limit: fetch_limit,
     });
@@ -1247,8 +1308,7 @@ async function print_all_audit_logs(client: Client, server_ids: Map<string, Rele
   }
 }
 
-async function get_server_ids(knex_instance: Knex): Promise<Map<string, RelevantIDs>> {
-
+async function get_server_ids(knex_instance: Knex): Promise<Server_IDs> {
   const server_ids = new Map<string, RelevantIDs>([]);
 
   // interface ServerID {
@@ -1256,39 +1316,32 @@ async function get_server_ids(knex_instance: Knex): Promise<Map<string, Relevant
   //   description: string;
   //   ord: number;
   //   the_id: string;
-  // }  
+  // }
 
-  let rows = await knex_instance
-    .select("*")
-    .from("server_ids");
+  let rows = await knex_instance.select("*").from("server_ids");
 
   rows = rows.sort((a, b) => {
-
     if (a.server_id == b.server_id) {
       if (a.description == b.description) {
-        return (a.ord - b.ord)
+        return a.ord - b.ord;
       } else {
-        return (a.description - b.description)
+        return a.description - b.description;
       }
     } else {
-      return (a.server_id - b.server_id)
+      return a.server_id - b.server_id;
     }
-  })
+  });
 
-  console.log("printing rows")
-  console.log(rows)
-
-  let current_server_id = rows[0].server_id
+  let current_server_id = rows[0].server_id;
   let rel_ids: RelevantIDs = {
     audit_log_channel_id: "",
     whitelist_mod_roles: [],
     whitelisted_roles: [],
     user_role: "",
-    menu_roles: []
-  }
+    menu_roles: [],
+  };
 
   for (const row of rows) {
-
     if (row.server_id != current_server_id) {
       // we are done parsing all the ids of a server.
       server_ids.set(current_server_id, rel_ids);
@@ -1298,8 +1351,8 @@ async function get_server_ids(knex_instance: Knex): Promise<Map<string, Relevant
         whitelist_mod_roles: [],
         whitelisted_roles: [],
         user_role: "",
-        menu_roles: []
-      }
+        menu_roles: [],
+      };
     }
 
     switch (row.description) {
