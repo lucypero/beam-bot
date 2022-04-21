@@ -191,11 +191,6 @@ async function main() {
 
     //check if it is url
     const matches = message.content.match(/\bhttps?:\/\/\S+/gi);
-    console.log("matches:", matches);
-    matches?.forEach((match) => {
-      //
-      console.log(match);
-    });
 
     if (
       matches &&
@@ -280,6 +275,15 @@ async function main() {
         if (can_member_whitelist(message.member!, server_ids)) {
           const urls = command_and_args.slice(1);
           command_whitelist_url(urls, message, knex_instance);
+        } else {
+          // Post that u don't have the authority to use this command.
+          message.reply("You can't use that command.");
+        }
+        break;
+      }
+      case ".display_entire_audit_log": {
+        if (can_member_whitelist(message.member!, server_ids)) {
+          print_all_audit_logs(client, server_ids);
         } else {
           // Post that u don't have the authority to use this command.
           message.reply("You can't use that command.");
@@ -562,7 +566,6 @@ async function post_audit_log(channel: TextChannel, knex_instance: Knex) {
     })
     .then((new_entries) => {
       if (!new_entries || new_entries.length == 0) {
-        console.log("no new audit logs to post.");
         return;
       }
 
@@ -648,7 +651,21 @@ function command_mute(message: Message, args: string[]) {
       .then(() =>
         message.reply(`${member.displayName} was muted for ${days} days.`)
       )
-      .catch(console.error);
+      .catch((e) => {
+        if (e instanceof Error) {
+          if (
+            e.name == "DiscordAPIError" &&
+            e.message == "Missing Permissions"
+          ) {
+            message.reply(
+              `Missing Permissions error. Could not mute member, probably because the member is an Administrator.`
+            );
+          } else {
+            console.log("Error when muting user.");
+            console.log(e.message);
+          }
+        }
+      });
   });
 }
 
@@ -1244,8 +1261,8 @@ function format_audit_entry(
 
     entry.changes.forEach((change) => {
       change_str += `key: \`\`\`${change.key}\`\`\``;
-      change_str += `old: \`\`\`${change.old}\`\`\``;
-      change_str += `new: \`\`\`${change.new}\`\`\``;
+      change_str += `old: \`\`\`${JSON.stringify(change.old, null, 4)}\`\`\``;
+      change_str += `new: \`\`\`${JSON.stringify(change.new, null, 4)}\`\`\``;
       change_str += `\n`;
     });
 
@@ -1287,10 +1304,10 @@ async function print_all_audit_logs(
     );
 
     const the_entries_arr = Array.from(the_entries.values());
-    // for (const entry of the_entries_arr) {
-    //   format_audit_entry(channel, entry);
-    // }
-    console.log(the_entries_arr);
+    for (const entry of the_entries_arr) {
+      format_audit_entry(channel, entry);
+    }
+    //console.log(the_entries_arr);
   };
 
   for (const guild_id of server_ids.keys()) {
