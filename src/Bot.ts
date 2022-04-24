@@ -113,7 +113,7 @@ async function main() {
     knex_instance<UserRole>("user_roles")
       .where({
         guild_id: member.guild.id,
-        user_id: member.user.id
+        user_id: member.user.id,
       })
       .del()
       .then((entries_deleted) => {
@@ -128,7 +128,11 @@ async function main() {
 
     for (const role of the_roles) {
       knex_instance<UserRole>("user_roles")
-        .insert({ guild_id: member.guild.id, user_id: member.user.id, role_id: role })
+        .insert({
+          guild_id: member.guild.id,
+          user_id: member.user.id,
+          role_id: role,
+        })
         .catch((e) => {
           switch (get_db_error(e)) {
             case DBError.DuplicateError: {
@@ -144,12 +148,25 @@ async function main() {
   });
 
   client.on("guildMemberAdd", (member: GuildMember) => {
+    // add video and stream role to new members
+
+    const ids = server_ids.get(member.guild!.id);
+
+    if (!ids) {
+      console.log("The server that you are in is not in the database.");
+      return;
+    }
+
+    member.roles
+      .add([ids.menu_roles[0], ids.menu_roles[1]])
+      .catch(console.error);
+
     knex_instance
       .select("role_id")
       .from("user_roles")
       .where({
         guild_id: member.guild.id,
-        user_id: member.user.id
+        user_id: member.user.id,
       })
       .then((role_id_arr) => {
         if (role_id_arr.length != 0) {
@@ -194,6 +211,7 @@ async function main() {
     if (!message.guild) {
       return;
     }
+
     //let command_and_args = message.content.split(/\b(\s)/);
 
     //check if it is url
@@ -250,6 +268,43 @@ async function main() {
       }
       case ".bot_post_rules": {
         if (can_member_whitelist(message.member!, server_ids)) {
+          command_post_rules(message);
+        } else {
+          // Post that u don't have the authority to use this command.
+          message.reply("You can't use that command.");
+        }
+        break;
+      }
+      case ".bot_add_default_roles_to_everyone": {
+        if (can_member_whitelist(message.member!, server_ids)) {
+          const ids = server_ids.get(message.guild!.id);
+
+          if (!ids) {
+            console.log("The server that you are in is not in the database.");
+            return;
+          }
+
+          // get all members
+          message.guild.members.fetch().then((members) => {
+            const add_promises: Promise<GuildMember>[] = [];
+
+            members!.forEach((member) => {
+              // for each, add default roles to everyone.
+              add_promises.push(
+                member.roles.add([ids.menu_roles[0], ids.menu_roles[1]])
+              );
+            });
+
+            Promise.all(add_promises)
+              .then(() => {
+                message.reply("All ");
+              })
+              .catch((err) => {
+                message.reply("Something went wrong.");
+                console.log(err);
+              });
+          });
+
           command_post_rules(message);
         } else {
           // Post that u don't have the authority to use this command.
