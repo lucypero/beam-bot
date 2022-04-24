@@ -29,6 +29,7 @@ interface WhitelistedUser {
 
 interface UserRole {
   id: number;
+  guild_id: string;
   user_id: string;
   role_id: string;
 }
@@ -110,7 +111,10 @@ async function main() {
     const the_roles = Array.from(member.roles.cache.keys());
 
     knex_instance<UserRole>("user_roles")
-      .where("user_id", member.user.id)
+      .where({
+        guild_id: member.guild.id,
+        user_id: member.user.id
+      })
       .del()
       .then((entries_deleted) => {
         console.log(
@@ -124,7 +128,7 @@ async function main() {
 
     for (const role of the_roles) {
       knex_instance<UserRole>("user_roles")
-        .insert({ user_id: member.user.id, role_id: role })
+        .insert({ guild_id: member.guild.id, user_id: member.user.id, role_id: role })
         .catch((e) => {
           switch (get_db_error(e)) {
             case DBError.DuplicateError: {
@@ -143,7 +147,10 @@ async function main() {
     knex_instance
       .select("role_id")
       .from("user_roles")
-      .where("user_id", member.user.id)
+      .where({
+        guild_id: member.guild.id,
+        user_id: member.user.id
+      })
       .then((role_id_arr) => {
         if (role_id_arr.length != 0) {
           role_id_arr = role_id_arr.map((role_dict) => role_dict.role_id);
@@ -422,7 +429,7 @@ function command_post_role_message(message: Message, server_ids: Server_IDs) {
 <@&${ids.menu_roles[0]}> = Werde bei jedem Stream von Beam gepingt.
 <@&${ids.menu_roles[1]}> = Werde bei jedem Video von Beam gepingt.
 <@&${ids.menu_roles[2]}> = Infos & Events rund um den PvE Community Server.
-<@&${ids.menu_roles[1]}> = Infos & Events rund um den Deathmatch Server.`,
+<@&${ids.menu_roles[3]}> = Infos & Events rund um den Deathmatch Server.`,
     });
 
   const row = new MessageActionRow().addComponents(
