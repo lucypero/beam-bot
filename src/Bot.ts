@@ -291,21 +291,23 @@ async function main() {
             members!.forEach((member) => {
               // for each, add default roles to everyone.
               add_promises.push(
-                member.roles.add([ids.menu_roles[0], ids.menu_roles[1]])
+                member.roles.add([
+                  ids.menu_roles[0],
+                  ids.menu_roles[1],
+                  ids.user_role,
+                ])
               );
             });
 
             Promise.all(add_promises)
               .then(() => {
-                message.reply("All ");
+                message.reply("All current members have been assigned the default roles.");
               })
               .catch((err) => {
                 message.reply("Something went wrong.");
                 console.log(err);
               });
           });
-
-          command_post_rules(message);
         } else {
           // Post that u don't have the authority to use this command.
           message.reply("You can't use that command.");
@@ -701,15 +703,41 @@ function command_mute(message: Message, args: string[]) {
     return;
   }
 
-  const days = parseInt(args[args.length - 1], 10);
-  if (isNaN(days)) {
-    message.reply("You must specify the amount of days.");
+  let time_i = -1;
+  let days = 0;
+
+  for (let index = 0; index < args.length; index++) {
+
+    const d = parseInt(args[index], 10);
+    if (!isNaN(d)) {
+      days = d;
+      time_i = index;
+      break;
+    }
+  }
+
+  let reason: string[] = [];
+  let reason_str: string | undefined = undefined
+
+  if(args.length > time_i + 1) {
+    reason = args.slice(time_i+1);
+    reason_str = reason.join(' ');
+  }
+
+  if (time_i == -1) {
+    message.reply("Could not find a time for the mute on the command message.");
     return;
   }
 
+  // const days = parseInt(args[args.length - 1], 10);
+  // if (isNaN(days)) {
+  //   message.reply("You must specify the amount of days.");
+  //   return;
+  // }
+
   mentions!.forEach((member) => {
     member
-      .timeout(1000 * 60 * 60 * 24 * days)
+      .timeout(1000 * 60 * 60 * 24 * days, reason_str)
       .then(() =>
         message.reply(`${member.displayName} was muted for ${days} days.`)
       )
