@@ -301,7 +301,9 @@ async function main() {
 
             Promise.all(add_promises)
               .then(() => {
-                message.reply("All current members have been assigned the default roles.");
+                message.reply(
+                  "All current members have been assigned the default roles."
+                );
               })
               .catch((err) => {
                 message.reply("Something went wrong.");
@@ -382,14 +384,14 @@ function add_to_whitelist<T>(knex_inst: Knex, table: string, wl_value: T) {
 //post the rules
 function command_post_rules(message: Message) {
   const rules_de = [
-    "Seid nett und freundlich zu einander. Beleidigt, belästigt oder diskriminiert nicht mit faschistischen, rassistischen, homo/transphoben, sexistischen und/oder Menschen - verachtenden Äußerungen oder Reactions.",
+    "Seid nett und freundlich zu einander. Beleidigt, belästigt oder diskriminiert nicht mit faschistischen, rassistischen, homo/transphoben, sexistischen und/oder Menschen - verachtenden Äußerungen oder Reactions. Verhaltet euch rücksichtsvoll und benutzt bitte euren gesunden Menschenverstand im Umgang miteinander.",
     "Bitte kein 18+ Content. D.h. nicht in Text, Bild, Video, Profil, Username, etc. Gewalt- und Drogenkonsum verherrlichende Inhalte sind ebenfalls verboten.",
     "Störung der Kommunikation, Belästigung und Beleidigung sowie Provokation und jegliches Bedrohen von Nutzern im Voice/Schreibchat ist untersagt. Dazu zählt auch unnötiges pingen und/oder spammen.",
     "Die Stimme, Webcam & Bildschirmübertragung anderer User, darf ohne deren Einverständnis unter keinen Umständen aufgenommen/weiterverarbeitet werden.",
     "Kein nervendes Nachfragen nach gebannten Personen. (wenn eine Person gebannt ist, kann diese Person @BeKa per PN anschreiben (bei DC Bann). Und per Ticket bei mute um die Angelegenheit klären)",
     "Das Benutzen von Zweitaccounts, sowie das Umgehen von Mutes, Banns usw. führt zu sofortigem permanentem Ausschluss.",
     "Probleme auf Beam´s Spiele Servern, sowie auf dem DC werden ausschließlich über das Ticket-System geklärt.",
-    "Keine Fremdserverwerbung. Auch nicht in Verbindung mit Tribe/Member suche. Außerdem sind nur Links von Beams Infoblättern oder von Ingame - Screenshots erlaubt. ",
+    "Keine Fremdserverwerbung. Auch nicht in Verbindung mit Tribe/Member suche. Außerdem sind nur Links von Beams Infoblättern oder von Ingame - Screenshots erlaubt.",
     "Beachtet bitte auch die Discord Community Richtlinien. https://discord.com/guidelines",
   ];
 
@@ -398,11 +400,11 @@ function command_post_rules(message: Message) {
     "No 18+ content in text messages, including videos, pictures, profile pictures, profiles and status and usernames, no glorifying drug use or violence.",
     "No disrupting or disturbing people in voice or text chat or trying to provoke or threatening people, please follow the other rules at all times.",
     "No unneeded pinging or spamming other members or messages.",
-    "Recording of other users voice, webcam, streams or screensharing is prohibited without permission and awareness of all involved. ",
-    "No repetitive questions about the bans of other members or yourself, appeals should be sent to @BeKa via private message, only if it is a ban from Beam's discord. For any other punishment a ticket must be opened. ",
+    "Recording of other users voice, webcam, streams or screensharing is prohibited without permission and awareness of all involved.",
+    "No repetitive questions about the bans of other members or yourself, appeals should be sent to @BeKa via private message, only if it is a ban from Beam's discord. For any other punishment a ticket must be opened.",
     "Ban evasion is prohibited, trying to get around a ban with alt accounts will result in permanent ban without warning.",
-    "All problems relating to Beam's game servers and discord will exclusively answered with tickets, no questions will be answered via private messages ",
-    "No unsolicited advertisement's, this includes tribe or member search by you or on behalf of others, Links are not allowed excluding beam project information or in-game screenshots. (Special allowance may be available for twitch subs or discord boosters) ",
+    "All problems relating to Beam's game servers and discord will exclusively answered with tickets, no questions will be answered via private messages.",
+    "No unsolicited advertisement's, this includes tribe or member search by you or on behalf of others, Links are not allowed excluding beam project information or in-game screenshots.",
     "Please also follow the discord community guidelines: https://discord.com/guidelines",
   ];
 
@@ -478,7 +480,6 @@ function command_post_role_message(message: Message, server_ids: Server_IDs) {
 
   const the_embed = new MessageEmbed()
     .setColor(embed_color)
-    .setTitle("Rules")
     .addFields({
       name: "Durch Klicken auf den entsprechenden Button könnt ihr euch die Rolle selbst geben und nehmen.",
       value: `Die Stream und Videorolle bekommen alle standardmäßig. Wenn ihr bei Streams oder Videos nicht gepingt werden wollt, könnt ihr sie durch klicken auf den jeweiligen Button wieder entfernen.
@@ -527,7 +528,7 @@ function command_post_role_message(message: Message, server_ids: Server_IDs) {
 //TODO: You just rewrote this whole function. test it and do the TODO's inside!!!
 //TODO: do error checking with try/catch on await stuff.
 async function post_audit_log(channel: TextChannel, knex_instance: Knex) {
-  const fetch_limit = 3;
+  const fetch_limit = 100;
 
   const update_last_entry = function (last_entry: string) {
     knex_instance
@@ -542,53 +543,34 @@ async function post_audit_log(channel: TextChannel, knex_instance: Knex) {
       .catch(console.error);
   };
 
-  const fetch_forever = async function (
+  const fetch_last_few_logs = async function (
     last_entry_id: string
   ): Promise<GuildAuditLogsEntry[]> {
-    let before_id: string | undefined = undefined;
     let total_entries: GuildAuditLogsEntry[] = [];
 
     // first entry index where u should start posting
     //  >= entries.length, post nothing.
     let index_where_should_post = 0;
 
-    while (true) {
-      const log_entries = await channel.guild!.fetchAuditLogs({
-        limit: fetch_limit,
-        before: before_id,
-      });
+    const log_entries = await channel.guild!.fetchAuditLogs({
+      limit: fetch_limit,
+    });
 
-      let the_entries = log_entries.entries;
+    let the_entries = log_entries.entries;
 
-      //this sorts it from oldest -> newest (oldest will be the first item)
-      the_entries = the_entries.sort(
-        (a, b) => a.createdTimestamp - b.createdTimestamp
-      );
-      const the_entries_arr = Array.from(the_entries.values());
+    //this sorts it from oldest -> newest (oldest will be the first item)
+    the_entries = the_entries.sort(
+      (a, b) => a.createdTimestamp - b.createdTimestamp
+    );
+    const the_entries_arr = Array.from(the_entries.values());
 
-      total_entries = the_entries_arr.concat(total_entries);
+    total_entries = the_entries_arr.concat(total_entries);
 
-      let should_break = false;
-
-      for (let i = 0; i < total_entries.length; ++i) {
-        if (total_entries[i].id == last_entry_id) {
-          index_where_should_post = i + 1;
-          should_break = true;
-          break;
-        }
-      }
-
-      if (should_break) {
+    for (let i = 0; i < total_entries.length; ++i) {
+      if (total_entries[i].id == last_entry_id) {
+        index_where_should_post = i + 1;
         break;
       }
-
-      if (the_entries.size < fetch_limit) {
-        break;
-      }
-
-      console.log("last entry not found in this batch. fetching again.");
-
-      before_id = the_entries.firstKey()! as string;
     }
 
     //Cutting the posts that were already posted
@@ -626,7 +608,7 @@ async function post_audit_log(channel: TextChannel, knex_instance: Knex) {
       }
 
       const last_entry_id: string = last_entry_id_arr[0].audit_entry_id;
-      return fetch_forever(last_entry_id);
+      return fetch_last_few_logs(last_entry_id);
     })
     .then((new_entries) => {
       if (!new_entries || new_entries.length == 0) {
@@ -634,23 +616,16 @@ async function post_audit_log(channel: TextChannel, knex_instance: Knex) {
       }
 
       new_entries = new_entries!;
+      update_last_entry(new_entries![new_entries!.length - 1].id);
+
       const send_promises = [];
-
       for (let i = 0; i < new_entries.length; ++i) {
-        // let entry = new_entries[i];
-        // let post_str = `action:${entry.action}
-        //   action_type:${entry.actionType}
-        //   reason:${entry?.reason}
-        // `;
-
-        // send_promises.push(channel.send(post_str));
         send_promises.push(format_audit_entry(channel, new_entries[i]));
       }
 
       Promise.all(send_promises)
         .then(() => {
-          console.log("all audit logs posted. updating last entry id.");
-          update_last_entry(new_entries![new_entries!.length - 1].id);
+          console.log("all audit logs posted");
         })
         .catch(console.error);
     });
@@ -707,7 +682,6 @@ function command_mute(message: Message, args: string[]) {
   let days = 0;
 
   for (let index = 0; index < args.length; index++) {
-
     const d = parseInt(args[index], 10);
     if (!isNaN(d)) {
       days = d;
@@ -717,11 +691,11 @@ function command_mute(message: Message, args: string[]) {
   }
 
   let reason: string[] = [];
-  let reason_str: string | undefined = undefined
+  let reason_str: string | undefined = undefined;
 
-  if(args.length > time_i + 1) {
-    reason = args.slice(time_i+1);
-    reason_str = reason.join(' ');
+  if (args.length > time_i + 1) {
+    reason = args.slice(time_i + 1);
+    reason_str = reason.join(" ");
   }
 
   if (time_i == -1) {
