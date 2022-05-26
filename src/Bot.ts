@@ -478,17 +478,15 @@ function command_post_role_message(message: Message, server_ids: Server_IDs) {
     return;
   }
 
-  const the_embed = new MessageEmbed()
-    .setColor(embed_color)
-    .addFields({
-      name: "Durch Klicken auf den entsprechenden Button könnt ihr euch die Rolle selbst geben und nehmen.",
-      value: `Die Stream und Videorolle bekommen alle standardmäßig. Wenn ihr bei Streams oder Videos nicht gepingt werden wollt, könnt ihr sie durch klicken auf den jeweiligen Button wieder entfernen.
+  const the_embed = new MessageEmbed().setColor(embed_color).addFields({
+    name: "Durch Klicken auf den entsprechenden Button könnt ihr euch die Rolle selbst geben und nehmen.",
+    value: `Die Stream und Videorolle bekommen alle standardmäßig. Wenn ihr bei Streams oder Videos nicht gepingt werden wollt, könnt ihr sie durch klicken auf den jeweiligen Button wieder entfernen.
 
 <@&${ids.menu_roles[0]}> = Werde bei jedem Stream von Beam gepingt.
 <@&${ids.menu_roles[1]}> = Werde bei jedem Video von Beam gepingt.
 <@&${ids.menu_roles[2]}> = Infos & Events rund um den PvE Community Server.
 <@&${ids.menu_roles[3]}> = Infos & Events rund um den Deathmatch Server.`,
-    });
+  });
 
   const row = new MessageActionRow().addComponents(
     new MessageButton()
@@ -984,6 +982,13 @@ function run_audit_log(
         setInterval(() => {
           check_func(text_channel);
         }, check_log_period_secs * 1000);
+      })
+      .catch(() => {
+        console.log(
+          "error fetching guild ",
+          guild_id,
+          " (possibly the bot is not in the guild.)"
+        );
       });
   }
 
