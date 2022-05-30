@@ -1029,254 +1029,229 @@ function format_audit_entry(
 
   let the_title = "action type not implemented";
   let the_description = "no description";
-
+  
+  let the_executor = entry.executor ? `<@${entry.executor!.id}>` : "";
+  let the_target_channel = entry.target ? `<#${entry.target!.id}>` : "";
+  let the_target_role = entry.target ? `<@&${entry.target!.id}>` : "";
+  let the_target_member = entry.target ? `<@${entry.target!.id}>` : "";
+  
   switch (entry.action as string) {
     case "GUILD_UPDATE": {
       the_title = "Guild Update";
-      the_description = `<@${entry.executor!.id}> has modified guild data`;
+      the_description = `${the_executor} has modified guild data`;
       break;
     }
     case "CHANNEL_CREATE": {
       the_title = "Channel Created";
       the_description = `<@${
         entry.executor!.id
-      }> has created a new channel: <#${entry.target!.id}>`;
+      }> has created a new channel: ${the_target_channel}`;
       break;
     }
     case "CHANNEL_UPDATE": {
       the_title = "Channel Updated";
-      the_description = `<@${entry.executor!.id}> has updated the channel: <#${
-        entry.target!.id
-      }>`;
+      the_description = `${the_executor} has updated the channel: ${the_target_channel}`;
       break;
     }
     case "CHANNEL_DELETE": {
       the_title = "Channel Deleted";
-      the_description = `<@${entry.executor!.id}> has deleted the channel: <#${
-        entry.target!.id
-      }>`;
+      the_description = `${the_executor} has deleted the channel: ${the_target_channel}`;
       break;
     }
     case "CHANNEL_OVERWRITE_CREATE": {
       the_title = "Channel Overwrite created";
       the_description = `<@${
         entry.executor!.id
-      }> has created a channel overwrite for the channel: <#${
-        entry.target!.id
-      }>`;
+      }> has created a channel overwrite for the channel: ${the_target_channel}`;
       break;
     }
     case "CHANNEL_OVERWRITE_UPDATE": {
       the_title = "Channel Overwrite updated";
       the_description = `<@${
         entry.executor!.id
-      }> has updated a channel overwrite for the channel: <#${
-        entry.target!.id
-      }>`;
+      }> has updated a channel overwrite for the channel: ${the_target_channel}`;
       break;
     }
     case "CHANNEL_OVERWRITE_DELETE": {
       the_title = "Channel Overwrite deleted";
       the_description = `<@${
         entry.executor!.id
-      }> has deleted a channel overwrite for the channel: <#${
-        entry.target!.id
-      }>`;
+      }> has deleted a channel overwrite for the channel: ${the_target_channel}`;
       break;
     }
     case "MEMBER_KICK": {
       the_title = "Member Kicked";
-      the_description = `<@${entry.executor!.id}> has kicked <@${
-        entry.target!.id
-      }>`;
+      the_description = `${the_executor} has kicked ${the_target_member}`;
       break;
     }
     case "MEMBER_PRUNE": {
       the_title = "Member Prune";
-      the_description = `<@${entry.executor!.id}> has pruned members`;
+      the_description = `${the_executor} has pruned members`;
       break;
     }
     case "MEMBER_BAN_ADD": {
       the_title = "Member ban";
-      the_description = `<@${entry.executor!.id}> has banned <@${
-        entry.target!.id
-      }>`;
+      the_description = `${the_executor} has banned ${the_target_member}`;
       break;
     }
     case "MEMBER_BAN_REMOVE": {
       the_title = "Ban removed";
-      the_description = `<@${entry.executor!.id}> has removed the ban on <@${
-        entry.target!.id
-      }>`;
+      the_description = `${the_executor} has removed the ban on ${the_target_member}`;
       break;
     }
     case "MEMBER_UPDATE": {
       the_title = "Member Update";
       the_description = `<@${
         entry.executor!.id
-      }> has updated the member data of <@${entry.target!.id}>`;
+      }> has updated the member data of ${the_target_member}`;
       break;
     }
     case "MEMBER_ROLE_UPDATE": {
       the_title = "Member Role Update";
-      the_description = `<@${entry.executor!.id}> has updated the roles of <@${
-        entry.target!.id
-      }>`;
+      the_description = `${the_executor} has updated the roles of ${the_target_member}`;
       break;
     }
     case "MEMBER_MOVE": {
       the_title = "Member Move";
-      the_description = `<@${entry.executor!.id}> has moved <@${
-        entry.target!.id
-      }>`;
+      the_description = `${the_executor} has moved ${the_target_member}`;
       break;
     }
     case "MEMBER_DISCONNECT": {
       the_title = "Member Move";
-      the_description = `<@${entry.executor!.id}> has moved <@${
-        entry.target!.id
-      }>`;
+      the_description = `${the_executor} has moved ${the_target_member}`;
       break;
     }
     case "BOT_ADD": {
       the_title = "Bot Added";
-      the_description = `<@${entry.executor!.id}> has added a bot: <@${
-        entry.target!.id
-      }>`;
+      the_description = `${the_executor} has added a bot: ${the_target_member}`;
       break;
     }
     case "ROLE_CREATE": {
       the_title = "Role Creation";
-      the_description = `<@${entry.executor!.id}> has created a role: <@&${
-        entry.target!.id
-      }>`;
+      the_description = `${the_executor} has created a role: ${the_target_role}`;
       break;
     }
     case "ROLE_UPDATE": {
       the_title = "Role Updated";
-      the_description = `<@${entry.executor!.id}> has updated a role: <@&${
-        entry.target!.id
-      }>`;
+      the_description = `${the_executor} has updated a role: ${the_target_role}`;
       break;
     }
     case "ROLE_DELETE": {
       the_title = "Role Deleted";
-      the_description = `<@${entry.executor!.id}> has deleted a role: <@&${
-        entry.target!.id
-      }>`;
+      the_description = `${the_executor} has deleted a role: ${the_target_role}`;
       break;
     }
     case "INVITE_CREATE": {
       the_title = "Invite Creation";
-      the_description = `<@${entry.executor!.id}> has created a server invite`;
+      the_description = `${the_executor} has created a server invite`;
       break;
     }
     case "INVITE_UPDATE": {
       the_title = "Invite Updated";
-      the_description = `<@${entry.executor!.id}> has updated a server invite`;
+      the_description = `${the_executor} has updated a server invite`;
       break;
     }
     case "INVITE_DELETE": {
       the_title = "Invite Deleted";
-      the_description = `<@${entry.executor!.id}> has deleted a server invite`;
+      the_description = `${the_executor} has deleted a server invite`;
       break;
     }
     case "WEBHOOK_CREATE": {
       the_title = "Webhook Created";
-      the_description = `<@${entry.executor!.id}> has created a webhook`;
+      the_description = `${the_executor} has created a webhook`;
       break;
     }
     case "WEBHOOK_UPDATE": {
       the_title = "Webhook Created";
-      the_description = `<@${entry.executor!.id}> has updated a webhook`;
+      the_description = `${the_executor} has updated a webhook`;
       break;
     }
     case "WEBHOOK_DELETE": {
       the_title = "Webhook Deleted";
-      the_description = `<@${entry.executor!.id}> has deleted a webhook`;
+      the_description = `${the_executor} has deleted a webhook`;
       break;
     }
     case "EMOJI_CREATE": {
       the_title = "Emoji Created";
-      the_description = `<@${entry.executor!.id}> has created an emoji`;
+      the_description = `${the_executor} has created an emoji`;
       break;
     }
     case "EMOJI_UPDATE": {
       the_title = "Emoji Updated";
-      the_description = `<@${entry.executor!.id}> has updated an emoji`;
+      the_description = `${the_executor} has updated an emoji`;
       break;
     }
     case "EMOJI_DELETE": {
       the_title = "Emoji Deleted";
-      the_description = `<@${entry.executor!.id}> has deleted an emoji`;
+      the_description = `${the_executor} has deleted an emoji`;
       break;
     }
     case "MESSAGE_DELETE": {
       the_title = "Message Deleted";
-      the_description = `<@${entry.executor!.id}> has deleted a message`;
+      the_description = `${the_executor} has deleted a message`;
       // TODO(lucypero): show the message contents and who wrote the message
       break;
     }
     case "MESSAGE_BULK_DELETE": {
       the_title = "Message Bulk Deletion";
-      the_description = `<@${entry.executor!.id}> has bulk deleted messages`;
+      the_description = `${the_executor} has bulk deleted messages`;
       break;
     }
     case "MESSAGE_PIN": {
       the_title = "Message Pinned";
-      the_description = `<@${entry.executor!.id}> has pinned a message`;
+      the_description = `${the_executor} has pinned a message`;
       // TODO(lucypero): show the message contents and who wrote the message
       break;
     }
     case "MESSAGE_UNPIN": {
       the_title = "Message Unpinned";
-      the_description = `<@${entry.executor!.id}> has unpinned a message`;
+      the_description = `${the_executor} has unpinned a message`;
       // TODO(lucypero): show the message contents and who wrote the message
       break;
     }
     case "INTEGRATION_CREATE": {
       the_title = "Integration Created";
-      the_description = `<@${entry.executor!.id}> has created an integration`;
+      the_description = `${the_executor} has created an integration`;
       break;
     }
     case "INTEGRATION_UPDATE": {
       the_title = "Integration Updated";
-      the_description = `<@${entry.executor!.id}> has updated an integration`;
+      the_description = `${the_executor} has updated an integration`;
       break;
     }
     case "INTEGRATION_DELETE": {
       the_title = "Integration Deleted";
-      the_description = `<@${entry.executor!.id}> has deleted an integration`;
+      the_description = `${the_executor} has deleted an integration`;
       break;
     }
     case "STAGE_INSTANCE_CREATE": {
       the_title = "Stage Instance Created";
-      the_description = `<@${entry.executor!.id}> has created a stage instance`;
+      the_description = `${the_executor} has created a stage instance`;
       break;
     }
     case "STAGE_INSTANCE_UPDATE": {
       the_title = "Stage Instance Updated";
-      the_description = `<@${entry.executor!.id}> has updated a stage instance`;
+      the_description = `${the_executor} has updated a stage instance`;
       break;
     }
     case "STAGE_INSTANCE_DELETE": {
       the_title = "Stage Instance Deleted";
-      the_description = `<@${entry.executor!.id}> has deleted a stage instance`;
+      the_description = `${the_executor} has deleted a stage instance`;
       break;
     }
     case "STICKER_CREATE": {
       the_title = "Sticker Created";
-      the_description = `<@${entry.executor!.id}> has created a sticker`;
+      the_description = `${the_executor} has created a sticker`;
       break;
     }
     case "STICKER_UPDATE": {
       the_title = "Sticker Updated";
-      the_description = `<@${entry.executor!.id}> has updated a sticker`;
+      the_description = `${the_executor} has updated a sticker`;
       break;
     }
     case "STICKER_DELETE": {
       the_title = "Sticker Deleted";
-      the_description = `<@${entry.executor!.id}> has deleted a sticker`;
+      the_description = `${the_executor} has deleted a sticker`;
       break;
     }
     case "GUILD_SCHEDULED_EVENT_CREATE": {
@@ -1302,17 +1277,17 @@ function format_audit_entry(
     }
     case "THREAD_CREATE": {
       the_title = "Thread Created";
-      the_description = `<@${entry.executor!.id}> has created a thread`;
+      the_description = `${the_executor} has created a thread`;
       break;
     }
     case "THREAD_UPDATE": {
       the_title = "Thread Updated";
-      the_description = `<@${entry.executor!.id}> has updated a thread`;
+      the_description = `${the_executor} has updated a thread`;
       break;
     }
     case "THREAD_DELETE": {
       the_title = "Thread Deleted";
-      the_description = `<@${entry.executor!.id}> has deleted a thread`;
+      the_description = `${the_executor} has deleted a thread`;
       break;
     }
     default: {
