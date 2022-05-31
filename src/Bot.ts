@@ -955,7 +955,7 @@ async function should_whitelist(
         }
       );
 
-    if (!found_urls) {
+    if (!found_urls || found_urls.length === 0) {
       found_flag = false;
       break;
     }
