@@ -528,7 +528,7 @@ function command_post_role_message(message: Message, server_ids: Server_IDs) {
 async function post_audit_log(channel: TextChannel, knex_instance: Knex) {
   const fetch_limit = 100;
 
-  const update_last_entry = function (last_entry: string) {
+  const update_last_entry = function(last_entry: string) {
     knex_instance
       .raw(
         "insert or replace into last_audits values(:guild_id,:last_entry_id)",
@@ -541,7 +541,7 @@ async function post_audit_log(channel: TextChannel, knex_instance: Knex) {
       .catch(console.error);
   };
 
-  const fetch_last_few_logs = async function (
+  const fetch_last_few_logs = async function(
     last_entry_id: string
   ): Promise<GuildAuditLogsEntry[]> {
     let total_entries: GuildAuditLogsEntry[] = [];
@@ -945,12 +945,24 @@ async function should_whitelist(
   }
 
   // check if url is whitelisted
-  const found_urls = await knex_instance
-    .select("url")
-    .from<WhitelistedUrl>("whitelisted_urls")
-    .whereIn("url", urls);
-  if (found_urls && found_urls.length == urls.length) {
-    console.log("url is ok bc urls");
+  let found_flag = true;
+  for (let url of urls) {
+    const found_urls = await knex_instance
+      .raw(
+        "select url from whitelisted_urls where substr(:the_url, 1, length(url)) = url",
+        {
+          the_url: url
+        }
+      );
+
+    if (!found_urls) {
+      found_flag = false;
+      break;
+    }
+  }
+
+  if (found_flag) {
+    console.log("url is ok because url is allowed")
     return true;
   }
 
@@ -1029,12 +1041,12 @@ function format_audit_entry(
 
   let the_title = "action type not implemented";
   let the_description = "no description";
-  
+
   let the_executor = entry.executor ? `<@${entry.executor!.id}>` : "";
   let the_target_channel = entry.target ? `<#${entry.target!.id}>` : "";
   let the_target_role = entry.target ? `<@&${entry.target!.id}>` : "";
   let the_target_member = entry.target ? `<@${entry.target!.id}>` : "";
-  
+
   switch (entry.action as string) {
     case "GUILD_UPDATE": {
       the_title = "Guild Update";
@@ -1043,9 +1055,8 @@ function format_audit_entry(
     }
     case "CHANNEL_CREATE": {
       the_title = "Channel Created";
-      the_description = `<@${
-        entry.executor!.id
-      }> has created a new channel: ${the_target_channel}`;
+      the_description = `<@${entry.executor!.id
+        }> has created a new channel: ${the_target_channel}`;
       break;
     }
     case "CHANNEL_UPDATE": {
@@ -1060,23 +1071,20 @@ function format_audit_entry(
     }
     case "CHANNEL_OVERWRITE_CREATE": {
       the_title = "Channel Overwrite created";
-      the_description = `<@${
-        entry.executor!.id
-      }> has created a channel overwrite for the channel: ${the_target_channel}`;
+      the_description = `<@${entry.executor!.id
+        }> has created a channel overwrite for the channel: ${the_target_channel}`;
       break;
     }
     case "CHANNEL_OVERWRITE_UPDATE": {
       the_title = "Channel Overwrite updated";
-      the_description = `<@${
-        entry.executor!.id
-      }> has updated a channel overwrite for the channel: ${the_target_channel}`;
+      the_description = `<@${entry.executor!.id
+        }> has updated a channel overwrite for the channel: ${the_target_channel}`;
       break;
     }
     case "CHANNEL_OVERWRITE_DELETE": {
       the_title = "Channel Overwrite deleted";
-      the_description = `<@${
-        entry.executor!.id
-      }> has deleted a channel overwrite for the channel: ${the_target_channel}`;
+      the_description = `<@${entry.executor!.id
+        }> has deleted a channel overwrite for the channel: ${the_target_channel}`;
       break;
     }
     case "MEMBER_KICK": {
@@ -1101,9 +1109,8 @@ function format_audit_entry(
     }
     case "MEMBER_UPDATE": {
       the_title = "Member Update";
-      the_description = `<@${
-        entry.executor!.id
-      }> has updated the member data of ${the_target_member}`;
+      the_description = `<@${entry.executor!.id
+        }> has updated the member data of ${the_target_member}`;
       break;
     }
     case "MEMBER_ROLE_UPDATE": {
@@ -1256,23 +1263,20 @@ function format_audit_entry(
     }
     case "GUILD_SCHEDULED_EVENT_CREATE": {
       the_title = "Scheduled Event Created";
-      the_description = `<@${
-        entry.executor!.id
-      }> has created a scheduled event`;
+      the_description = `<@${entry.executor!.id
+        }> has created a scheduled event`;
       break;
     }
     case "GUILD_SCHEDULED_EVENT_UPDATE": {
       the_title = "Scheduled Event Updated";
-      the_description = `<@${
-        entry.executor!.id
-      }> has updated a scheduled event`;
+      the_description = `<@${entry.executor!.id
+        }> has updated a scheduled event`;
       break;
     }
     case "GUILD_SCHEDULED_EVENT_DELETE": {
       the_title = "Scheduled Event Deleted";
-      the_description = `<@${
-        entry.executor!.id
-      }> has deleted a scheduled event`;
+      the_description = `<@${entry.executor!.id
+        }> has deleted a scheduled event`;
       break;
     }
     case "THREAD_CREATE": {
@@ -1335,7 +1339,7 @@ async function print_all_audit_logs(
 ) {
   const fetch_limit = 100;
 
-  const print_stuff = async function (channel: TextChannel) {
+  const print_stuff = async function(channel: TextChannel) {
     const log_entries = await channel.guild!.fetchAuditLogs({
       limit: fetch_limit,
     });
